@@ -2,7 +2,9 @@
 
 See docs/plans/architecture-and-roadmap.md §8 and research-notes.md F2, F5:
 ``policy.allow_all()`` is the autonomy switch; ``ask_question`` is denied with
-guidance (never auto-answered); interactive hooks are never registered.
+guidance (never auto-answered) via ``OnInteractionHook`` (live
+``questions_request`` path) plus a decide-hook belt-and-braces; interactive
+hooks are never registered.
 """
 
 from __future__ import annotations
@@ -11,9 +13,20 @@ import re
 from collections.abc import Sequence
 from pathlib import Path
 
-from google.antigravity.hooks.hooks import HookContext, PreToolCallDecideHook
+from google.antigravity.hooks.hooks import (
+    HookContext,
+    OnInteractionHook,
+    PreToolCallDecideHook,
+)
 from google.antigravity.hooks.policy import Policy, allow_all, deny, workspace_only
-from google.antigravity.types import BuiltinTools, HookResult, ToolCall
+from google.antigravity.types import (
+    AskQuestionInteractionSpec,
+    BuiltinTools,
+    HookResult,
+    QuestionHookResult,
+    QuestionResponse,
+    ToolCall,
+)
 
 from agyloop.domain.permission import UserPermissionMode
 
@@ -74,6 +87,26 @@ class DenyAskQuestionHook(PreToolCallDecideHook):  # type: ignore[misc]
         return HookResult(allow=True)
 
 
+class DenyAskQuestionInteractionHook(OnInteractionHook):  # type: ignore[misc]
+    """Non-interactive ``OnInteractionHook``: return F5 guidance, never block.
+
+    Live ``ask_question`` is ``questions_request`` → this hook, not PRE_TOOL.
+    Do not use ``AskQuestionHook`` from ``utils.interactive`` (it blocks on
+    stdin). ``skipped=True`` makes the SDK set ``unanswered=True`` and drop
+    ``freeform_response``; the equivalent that delivers F5 is freeform text
+    with no option selected.
+
+    ``misc`` ignore: the SDK ships without ``py.typed``.
+    """
+
+    async def run(
+        self, context: HookContext, data: AskQuestionInteractionSpec
+    ) -> QuestionHookResult:
+        del context
+        guidance = QuestionResponse(freeform_response=ASK_QUESTION_DENY_MESSAGE)
+        return QuestionHookResult(responses=[guidance for _ in data.questions])
+
+
 def _command_line_from_args(args: dict[str, object]) -> str:
     for key in ("CommandLine", "command_line", "command", "Command"):
         value = args.get(key)
@@ -96,8 +129,8 @@ def destructive_command_denies() -> list[Policy]:
     ]
 
 
-def autonomy_hooks() -> list[PreToolCallDecideHook]:
-    return [DenyAskQuestionHook()]
+def autonomy_hooks() -> list[PreToolCallDecideHook | OnInteractionHook]:
+    return [DenyAskQuestionHook(), DenyAskQuestionInteractionHook()]
 
 
 def build_autonomy_policies(

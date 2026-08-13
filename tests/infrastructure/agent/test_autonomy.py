@@ -4,13 +4,19 @@ from __future__ import annotations
 
 import inspect
 
-from google.antigravity.hooks.hooks import HookContext
+from google.antigravity.connections.local.event_processor import LocalHarnessEventProcessor
+from google.antigravity.hooks.hook_runner import HookRunner
+from google.antigravity.hooks.hooks import HookContext, OnInteractionHook
+from google.antigravity.proto import localharness_pb2
 from google.antigravity.types import BuiltinTools, ToolCall
+from google.antigravity.utils.interactive import AskQuestionHook, ToolConfirmationHook
 
 from agyloop.infrastructure.agent.autonomy import (
     ASK_QUESTION_DENY_MESSAGE,
     DenyAskQuestionHook,
+    autonomy_hooks,
 )
+from agyloop.infrastructure.agent.options import build_local_config
 
 
 async def test_ask_question_denied_with_guidance() -> None:
@@ -31,8 +37,55 @@ async def test_ask_question_deny_does_not_block_other_tools() -> None:
 
 
 def test_ask_question_handler_is_synchronous() -> None:
-    """The decide body must not await a human; SDK run() is async but we don't wait."""
-    source = inspect.getsource(DenyAskQuestionHook.run)
-    assert "input(" not in source
-    assert "async_input" not in source
-    assert "sleep(" not in source
+    """Hook bodies must not await a human; SDK run() is async but we don't wait."""
+    for hook in autonomy_hooks():
+        source = inspect.getsource(type(hook).run)
+        assert "input(" not in source
+        assert "async_input" not in source
+        assert "sleep(" not in source
+
+
+async def test_questions_request_carries_deny_guidance() -> None:
+    """Live HITL path: questions_request → OnInteractionHook, not unanswered."""
+    cfg = build_local_config(cwd=".")
+    for hook in cfg.hooks:
+        assert not isinstance(hook, (ToolConfirmationHook, AskQuestionHook))
+    assert any(isinstance(hook, OnInteractionHook) for hook in cfg.hooks)
+
+    runner = HookRunner()
+    for hook in cfg.hooks:
+        runner.register_hook(hook)
+
+    sent: list[localharness_pb2.InputEvent] = []
+
+    async def capture(event: localharness_pb2.InputEvent) -> None:
+        sent.append(event)
+
+    processor = LocalHarnessEventProcessor(
+        send_input_event_fn=capture,
+        hook_runner=runner,
+    )
+    step_update = localharness_pb2.StepUpdate(
+        step_index=1,
+        trajectory_id="traj",
+        state=localharness_pb2.StepUpdate.STATE_WAITING_FOR_USER,
+        questions_request=localharness_pb2.UserQuestionsRequest(
+            questions=[
+                localharness_pb2.UserQuestion(
+                    multiple_choice=localharness_pb2.MultipleChoice(
+                        question="Which option?",
+                        choices=["A", "B"],
+                    )
+                )
+            ]
+        ),
+    )
+    await processor.handle_question_request(step_update)
+
+    assert sent, "questions_request must produce a question_response"
+    answers = sent[0].question_response.response.answers
+    assert len(answers) == 1
+    answer = answers[0]
+    assert not answer.unanswered
+    assert answer.multiple_choice_answer.freeform_response == ASK_QUESTION_DENY_MESSAGE
+    assert list(answer.multiple_choice_answer.selected_choice_indices) == []
