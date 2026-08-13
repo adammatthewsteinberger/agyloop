@@ -563,27 +563,6 @@ async def test_two_deferred_prompts_at_natural_break() -> None:
     assert gateway.sent_prompts[1] == "second-deferred"
 
 
-async def test_apply_control_skips_unknown_command_types() -> None:
-    """Covers the closed-union fallthrough when a non-ControlCommand slips in."""
-    clock = FakeClock(start=NOW)
-    runner = AutonomousRunner(
-        agent_gateway=FakeAgentGateway([]),
-        capacity_probe=FakeCapacityProbe([]),
-        clock=clock,
-        sleeper=FakeSleeper(clock),
-        audit_log=FakeAuditLog(),
-        progress=FakeProgressReporter(),
-        event_sink=FakeEventSink(),
-        state_store=FakeStateStore(),
-        session_lock=FakeSessionLock(),
-        save_points=FakeSavePointStore(),
-        run_id="r",
-    )
-    runner._apply_control([object()], natural_break=False)  # type: ignore[list-item]
-    assert runner._prompt_now is None
-    assert runner._stop_requested is False
-
-
 async def test_budget_uses_max_attempts() -> None:
     clock = FakeClock(start=NOW)
     runner = AutonomousRunner(

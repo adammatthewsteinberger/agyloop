@@ -10,7 +10,7 @@ from __future__ import annotations
 import contextlib
 import uuid
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, assert_never
 
 from agyloop.application.dto import RunResult, TurnOutcome
 from agyloop.application.ports import (
@@ -53,6 +53,7 @@ from agyloop.domain.control import (
     SetPresetCommand,
     SlashCommand,
     StopCommand,
+    stop_outranks,
 )
 from agyloop.domain.loop import (
     DelayThenSend,
@@ -403,7 +404,7 @@ class AutonomousRunner:
             )
 
             while True:
-                self._apply_control(self._control.poll(), natural_break=False)
+                self._apply_control(stop_outranks(self._control.poll()), natural_break=False)
                 if self._stop_requested:
                     self._log.info("run.stopping", reason="stopped by operator")
                     return await self._finish_stopped(
@@ -572,7 +573,7 @@ class AutonomousRunner:
 
                     # Natural break: Continue + about to SendTurn again
                     if isinstance(decision, SendTurn) and isinstance(verdict, Continue):
-                        self._apply_control(self._control.poll(), natural_break=True)
+                        self._apply_control(stop_outranks(self._control.poll()), natural_break=True)
                         if self._stop_requested:
                             self._log.info(
                                 "run.stopping",
@@ -966,6 +967,7 @@ class AutonomousRunner:
                 else:
                     self._events.emit("response.retry_empty", {})
                 continue
+            assert_never(command)  # pragma: no cover — ControlCommand is a closed union
 
         # Promote deferred → now only at natural break
         if natural_break and self._prompt_deferred is not None and self._prompt_now is None:
@@ -1134,7 +1136,7 @@ class AutonomousRunner:
     async def _sleep_interruptible(self, until: datetime) -> bool:
         """Chunked sleep; return True if stop was requested."""
         while True:
-            self._apply_control(self._control.poll(), natural_break=False)
+            self._apply_control(stop_outranks(self._control.poll()), natural_break=False)
             if self._stop_requested:
                 return True
             now = self._clock.now()

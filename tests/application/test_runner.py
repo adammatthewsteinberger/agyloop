@@ -13,7 +13,13 @@ import pytest
 from agyloop.application.runner import AutonomousRunner
 from agyloop.domain.budget import Budget
 from agyloop.domain.completion import StructuredVerdict
-from agyloop.domain.control import PromptDeferredCommand, PromptNowCommand, StopCommand
+from agyloop.domain.control import (
+    PromptDeferredCommand,
+    PromptNowCommand,
+    ResourceMutateCommand,
+    SetCwdCommand,
+    StopCommand,
+)
 from agyloop.domain.waiting import WaitPolicyConfig
 from tests.application.fakes import (
     CONTINUE_VERDICT,
@@ -57,6 +63,7 @@ def make_runner(
     run_control: FakeRunControl | None = None,
     notifier: FakeNotifier | None = None,
     save_points: FakeSavePointStore | None = None,
+    run_resources: Any | None = None,
 ) -> tuple[
     AutonomousRunner,
     FakeAgentGateway,
@@ -92,6 +99,7 @@ def make_runner(
         state_store=FakeStateStore(),
         session_lock=FakeSessionLock(),
         save_points=save_points or FakeSavePointStore(),
+        run_resources=run_resources,
     )
     return runner, gateway, audit, progress, sleeper, notifier, events, probe
 
@@ -321,6 +329,59 @@ def test_stop_command_ends_run_and_closes_gateway() -> None:
         assert "stopped" in result.reason
         assert gateway.closed is True
         assert summaries
+        assert any(e[0] == "control.stop" for e in events.events)
+
+    run(body())
+
+
+def test_stop_outranks_mixed_mutate_batch() -> None:
+    """A poll batch with Stop plus cwd/resource mutates must stop without mutating."""
+
+    class TrackingResources:
+        def __init__(self) -> None:
+            self.mutates: list[tuple[str, str, str]] = []
+            self.cwds: list[str] = []
+
+        def apply_mutate(
+            self, *, action: str, kind: str, value: str, name: str | None = None
+        ) -> dict[str, object]:
+            del name
+            self.mutates.append((action, kind, value))
+            return {"ok": True}
+
+        def gateway_payload(self) -> dict[str, object]:
+            return {}
+
+        def set_permission_mode(self, mode: str) -> None:
+            del mode
+
+        def set_cwd(self, path: str) -> None:
+            self.cwds.append(path)
+
+    async def body() -> None:
+        resources = TrackingResources()
+        control = FakeRunControl(
+            script=[
+                [
+                    SetCwdCommand(path="/should-not-apply"),
+                    ResourceMutateCommand(action="add", kind="skill", value="nope"),
+                    StopCommand(),
+                ]
+            ]
+        )
+        runner, gateway, _a, _p, _s, _n, events, _probe = make_runner(
+            turns=[ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT)],
+            probes=[available_signals()],
+            run_control=control,
+            run_resources=resources,
+        )
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        assert result.success is False
+        assert "stopped" in result.reason
+        assert resources.mutates == []
+        assert resources.cwds == []
+        assert gateway.cwds == []
+        assert gateway.sent_prompts == []
         assert any(e[0] == "control.stop" for e in events.events)
 
     run(body())
