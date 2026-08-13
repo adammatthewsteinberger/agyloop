@@ -220,6 +220,8 @@ def _enter_waiting(
         started_waiting_at=started,
         probe_count=probe_count,
     )
+    if config.no_probe:
+        return waiting, DelayThenSend(at=at)
     return waiting, ScheduleProbe(at=at)
 
 

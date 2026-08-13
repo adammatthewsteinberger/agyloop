@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Coroutine
-from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -45,6 +44,7 @@ from tests.application.fakes import (
     available_signals,
     credits_exhausted_signals,
     rpm_window_signals,
+    unknown_window_signals,
     window_exhausted_signals,
 )
 
@@ -89,8 +89,6 @@ def make_runner(
     progress = FakeProgressReporter()
     notifier = notifier or FakeNotifier()
     events = FakeEventSink()
-    if no_probe and not wait_policy.no_probe:
-        wait_policy = replace(wait_policy, no_probe=True)
     runner = AutonomousRunner(
         agent_gateway=gateway,
         capacity_probe=probe,
@@ -238,6 +236,90 @@ def test_no_probe_rpd_skips_probe_chat_and_waits_to_pacific_midnight() -> None:
         assert gateway.sent_prompts == ["start", "keep going"]
         assert sleeper.wait_log[-1] == midnight + timedelta(seconds=60)
         assert elapsed < _WALL_CLOCK_BUDGET
+
+    run(body())
+
+
+def test_rpd_window_notifies_on_wait_entry() -> None:
+    """§7: WindowExhausted rpd notifies on entry, same loud path as credits."""
+
+    async def body() -> None:
+        notifier = FakeNotifier()
+        runner, gateway, _audit, _progress, _sleeper, notifier, _e, _p = make_runner(
+            turns=[
+                ScriptedTurn(signals=window_exhausted_signals(), verdict=CONTINUE_VERDICT),
+                ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT),
+            ],
+            probes=[available_signals(), available_signals()],
+            notifier=notifier,
+        )
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        assert result.success is True
+        assert gateway.sent_prompts == ["start", "keep going"]
+        assert any("rpd" in m.lower() and "window" in m.lower() for m in notifier.messages)
+
+    run(body())
+
+
+def test_unknown_window_notifies_on_wait_entry() -> None:
+    """§7: WindowExhausted unknown notifies on entry."""
+
+    async def body() -> None:
+        notifier = FakeNotifier()
+        runner, gateway, _audit, _progress, _sleeper, notifier, _e, _p = make_runner(
+            turns=[
+                ScriptedTurn(signals=unknown_window_signals(), verdict=CONTINUE_VERDICT),
+                ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT),
+            ],
+            probes=[available_signals(), available_signals()],
+            notifier=notifier,
+        )
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        assert result.success is True
+        assert gateway.sent_prompts == ["start", "keep going"]
+        assert any("unknown" in m.lower() and "window" in m.lower() for m in notifier.messages)
+
+    run(body())
+
+
+def test_rpd_window_notifies_once_on_entry_not_every_probe() -> None:
+    async def body() -> None:
+        notifier = FakeNotifier()
+        runner, _g, _audit, _progress, _sleeper, notifier, _e, probe = make_runner(
+            turns=[ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT)],
+            probes=[
+                window_exhausted_signals(),
+                window_exhausted_signals(),
+                available_signals(),
+            ],
+            notifier=notifier,
+        )
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        assert result.success is True
+        assert probe.calls == 3
+        assert len(notifier.messages) == 1
+
+    run(body())
+
+
+def test_no_probe_wait_policy_is_delay_then_send_not_probe_skip() -> None:
+    """wait_policy.no_probe is the source of truth: sleep then real turn, never probe."""
+
+    async def body() -> None:
+        runner, gateway, _audit, _progress, sleeper, _n, events, probe = make_runner(
+            turns=[
+                ScriptedTurn(signals=window_exhausted_signals(), verdict=CONTINUE_VERDICT),
+                ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT),
+            ],
+            probes=[],
+            wait_policy=WaitPolicyConfig(no_probe=True),
+        )
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        assert result.success is True
+        assert probe.calls == 0
+        assert not any(e[0] == "probe" for e in events.events)
+        assert gateway.sent_prompts == ["start", "keep going"]
+        assert len(sleeper.wait_log) >= 1
 
     run(body())
 

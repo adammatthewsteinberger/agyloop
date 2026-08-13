@@ -34,7 +34,7 @@ from agyloop.application.ports import (
     StreamUi,
 )
 from agyloop.domain.budget import Budget, BudgetLedger
-from agyloop.domain.capacity import Available, CapacityState, CreditsExhausted
+from agyloop.domain.capacity import Available, CapacityState, CreditsExhausted, WindowExhausted
 from agyloop.domain.chatter import chatter_event_payload
 from agyloop.domain.classify import classify
 from agyloop.domain.completion import Blocked, CompletionVerdict, Continue, Done, evaluate
@@ -328,6 +328,7 @@ class AutonomousRunner:
         self._last_sent_prompt: str | None = None
         self._last_output_text: str = ""
         self._credits_notified = False
+        self._window_notified = False
         self._sticky_credits = False
         self._empty_turn_streak = 0
         self._progress_wait_streak = 0
@@ -383,7 +384,7 @@ class AutonomousRunner:
 
         try:
             capacity: CapacityState
-            if self._no_probe:
+            if self._wait_policy.no_probe:
                 capacity = Available()
             else:
                 preflight_outcome = await self._probe.probe()
@@ -596,6 +597,31 @@ class AutonomousRunner:
                             )
 
                 elif isinstance(decision, DelayThenSend):
+                    if state.phase == Phase.WAITING:
+                        stopped = await self._sleep_quota_wait(
+                            until=decision.at,
+                            state=state,
+                            session_id=session_id,
+                            attempt=attempt,
+                        )
+                        if stopped:
+                            self._log.info(
+                                "run.stopping",
+                                reason="stopped by operator during wait",
+                            )
+                            return await self._finish_stopped(
+                                state,
+                                session_id=session_id,
+                                reason="stopped by operator during wait",
+                            )
+                        self._log.info(
+                            "waiting.no_probe_resume",
+                            until=decision.at.isoformat(),
+                            probe_count=state.probe_count,
+                        )
+                        self._update_meta(waiting_until=None, status="active")
+                        decision = SendTurn()
+                        continue
                     self._events.emit(
                         "progress.wait",
                         {
@@ -628,39 +654,12 @@ class AutonomousRunner:
                     decision = SendTurn()
 
                 elif isinstance(decision, ScheduleProbe):
-                    self._progress.waiting(reason=state.phase.name, until=decision.at)
-                    self._audit.record(
-                        "waiting",
-                        {
-                            "until": decision.at.isoformat(),
-                            "run_id": self._run_id,
-                        },
-                    )
-                    self._events.emit(
-                        "waiting",
-                        {"until": decision.at.isoformat(), "phase": state.phase.name},
-                    )
-                    self._log.info(
-                        "waiting.scheduled",
-                        until=decision.at.isoformat(),
-                        phase=state.phase.name,
-                        probe_count=state.probe_count,
-                    )
-                    self._update_meta(
-                        status="waiting",
-                        phase=state.phase.name,
-                        attempt=attempt,
-                        waiting_until=decision.at.isoformat(),
-                        capacity=self._last_capacity_name,
-                    )
-                    self._emit_snapshot(
-                        "waiting",
+                    stopped = await self._sleep_quota_wait(
+                        until=decision.at,
+                        state=state,
                         session_id=session_id,
                         attempt=attempt,
-                        state=state,
-                        waiting_until=decision.at.isoformat(),
                     )
-                    stopped = await self._sleep_interruptible(decision.at)
                     if stopped:
                         self._log.info(
                             "run.stopping",
@@ -671,15 +670,6 @@ class AutonomousRunner:
                             session_id=session_id,
                             reason="stopped by operator during wait",
                         )
-                    if self._no_probe:
-                        self._log.info(
-                            "waiting.no_probe_resume",
-                            until=decision.at.isoformat(),
-                            probe_count=state.probe_count,
-                        )
-                        self._update_meta(waiting_until=None, status="active")
-                        decision = SendTurn()
-                        continue
                     probe_outcome = await self._probe.probe()
                     capacity = self._verdict_capacity(probe_outcome)
                     self._last_capacity_name = type(capacity).__name__
@@ -1151,6 +1141,49 @@ class AutonomousRunner:
             },
         )
 
+    async def _sleep_quota_wait(
+        self,
+        *,
+        until: datetime,
+        state: RunState,
+        session_id: str | None,
+        attempt: int,
+    ) -> bool:
+        """Emit quota-wait telemetry and sleep until ``until``. True if stopped."""
+        self._progress.waiting(reason=state.phase.name, until=until)
+        self._audit.record(
+            "waiting",
+            {
+                "until": until.isoformat(),
+                "run_id": self._run_id,
+            },
+        )
+        self._events.emit(
+            "waiting",
+            {"until": until.isoformat(), "phase": state.phase.name},
+        )
+        self._log.info(
+            "waiting.scheduled",
+            until=until.isoformat(),
+            phase=state.phase.name,
+            probe_count=state.probe_count,
+        )
+        self._update_meta(
+            status="waiting",
+            phase=state.phase.name,
+            attempt=attempt,
+            waiting_until=until.isoformat(),
+            capacity=self._last_capacity_name,
+        )
+        self._emit_snapshot(
+            "waiting",
+            session_id=session_id,
+            attempt=attempt,
+            state=state,
+            waiting_until=until.isoformat(),
+        )
+        return await self._sleep_interruptible(until)
+
     async def _sleep_interruptible(self, until: datetime) -> bool:
         """Chunked sleep; return True if stop was requested."""
         while True:
@@ -1332,6 +1365,9 @@ class AutonomousRunner:
         )
 
     def _maybe_notify_credits(self, capacity: CapacityState) -> None:
+        if isinstance(capacity, Available):
+            self._window_notified = False
+            return
         if isinstance(capacity, CreditsExhausted) and not self._credits_notified:
             purchase = (
                 "You can purchase more credits."
@@ -1348,6 +1384,20 @@ class AutonomousRunner:
                 "credits.exhausted",
                 can_purchase=capacity.can_purchase,
             )
+            return
+        if (
+            isinstance(capacity, WindowExhausted)
+            and capacity.rate_limit_type in {"rpd", "unknown"}
+            and not self._window_notified
+        ):
+            kind = capacity.rate_limit_type
+            self._notifier.notify(
+                f"agyloop: {kind} window exhausted — waiting until capacity "
+                "restores. The runner will keep retrying."
+            )
+            self._window_notified = True
+            self._events.emit("notify.window_exhausted", {"rate_limit_type": kind})
+            self._log.warning("window.exhausted", rate_limit_type=kind)
 
     def _persist(self, state: RunState, *, session_id: str | None, attempt: int) -> None:
         status = (

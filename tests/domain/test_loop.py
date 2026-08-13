@@ -10,6 +10,7 @@ from agyloop.domain.capacity import (
 )
 from agyloop.domain.completion import Blocked, Continue, Done
 from agyloop.domain.loop import (
+    DelayThenSend,
     Finish,
     Phase,
     RunState,
@@ -79,6 +80,62 @@ def test_preflight_rpm_window_schedules_short_wait_not_midnight() -> None:
     )
     assert state.phase == Phase.WAITING
     assert isinstance(decision, ScheduleProbe)
+    assert decision.at <= NOW + timedelta(seconds=60)
+
+
+def test_no_probe_rpd_wait_is_delay_then_send() -> None:
+    config = WaitPolicyConfig(no_probe=True)
+    state, decision = decide_after_turn(
+        fresh_state(),
+        capacity=WindowExhausted(rate_limit_type="rpd", resets_at=NOW),
+        verdict=Continue(),
+        now=NOW,
+        config=config,
+    )
+    assert state.phase == Phase.WAITING
+    assert isinstance(decision, DelayThenSend)
+
+
+def test_no_probe_unknown_wait_is_delay_then_send() -> None:
+    config = WaitPolicyConfig(no_probe=True)
+    state, decision = decide_after_turn(
+        fresh_state(),
+        capacity=WindowExhausted(rate_limit_type="unknown"),
+        verdict=Continue(),
+        now=NOW,
+        config=config,
+    )
+    assert state.phase == Phase.WAITING
+    assert isinstance(decision, DelayThenSend)
+
+
+def test_no_probe_credits_wait_is_delay_then_send_cadence() -> None:
+    cadence = timedelta(seconds=120)
+    config = WaitPolicyConfig(no_probe=True, credits_probe_interval=cadence)
+    state, decision = decide_after_turn(
+        fresh_state(),
+        capacity=CreditsExhausted(),
+        verdict=Continue(),
+        now=NOW,
+        config=config,
+    )
+    assert state.phase == Phase.WAITING
+    assert isinstance(decision, DelayThenSend)
+    assert decision.at == NOW + cadence
+
+
+def test_no_probe_rpm_wait_is_delay_then_send_short_window() -> None:
+    midnight = NOW + timedelta(hours=20)
+    config = WaitPolicyConfig(no_probe=True)
+    state, decision = decide_after_turn(
+        fresh_state(),
+        capacity=WindowExhausted(rate_limit_type="rpm", resets_at=midnight),
+        verdict=Continue(),
+        now=NOW,
+        config=config,
+    )
+    assert state.phase == Phase.WAITING
+    assert isinstance(decision, DelayThenSend)
     assert decision.at <= NOW + timedelta(seconds=60)
 
 

@@ -321,6 +321,14 @@ def rpm_window_signals() -> TurnSignals:
     )
 
 
+def unknown_window_signals() -> TurnSignals:
+    return TurnSignals(
+        http_status=429,
+        status="RESOURCE_EXHAUSTED",
+        message="Resource has been exhausted (e.g. check quota).",
+    )
+
+
 def window_exhausted_signals(*, resets_at: datetime | None = None) -> TurnSignals:
     if resets_at is not None:
         # RPD-shaped: classifier sets resets_at from Pacific midnight for rpd,
