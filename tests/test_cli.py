@@ -239,6 +239,50 @@ def test_resume_last_seeds_from_plan_md_not_truncated_preview(
     assert len(list_run_directories(tmp_path)) == 1
 
 
+def test_resume_last_survives_preflight_persist_of_null_session_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from agyloop.application.dto import RunResult
+    from agyloop.bootstrap import RunnerContext, build_runner
+    from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
+
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    directory.update_meta(conversation_id="conv-keep")
+    directory.update_meta(session_id=None, phase="WAITING", status="waiting")
+    assert directory.read_meta().conversation_id == "conv-keep"
+    captured: dict[str, object] = {}
+
+    class _StubRunner:
+        async def run(self, *, initial_prompt: str, continue_prompt: str) -> RunResult:
+            del initial_prompt, continue_prompt
+            return RunResult(
+                success=True,
+                reason="done",
+                session_id="sid",
+                turns_spent=1,
+                dollars_spent=0.0,
+            )
+
+    def _build_runner(**kwargs: object) -> RunnerContext:
+        ctx = build_runner(**kwargs)  # type: ignore[arg-type]
+        captured["conversation_id"] = kwargs.get("conversation_id")
+        captured["run_id"] = ctx.run_id
+        return RunnerContext(
+            runner=_StubRunner(),  # type: ignore[arg-type]
+            gateway=ctx.gateway,
+            run_dir=ctx.run_dir,
+            run_id=ctx.run_id,
+            trace_id=ctx.trace_id,
+        )
+
+    monkeypatch.setattr("agyloop.bootstrap.build_runner", _build_runner)
+    result = _invoke("resume", "--last", "--cwd", str(tmp_path), "--no-probe")
+    assert result.exception is None, result.exception
+    assert result.exit_code == 0
+    assert captured["conversation_id"] == "conv-keep"
+    assert captured["run_id"] == directory.read_meta().run_id
+
+
 def test_resume_without_registry_fails_cleanly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

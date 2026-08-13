@@ -109,6 +109,10 @@ class RunDirectory:
         if "session_id" in kwargs and "conversation_id" not in kwargs:
             kwargs["conversation_id"] = kwargs.pop("session_id")
         meta = self.read_meta()
+        # Preflight persist starts with session_id=None. Never erase a known
+        # conversation_id until a successful turn supplies a replacement.
+        if not kwargs.get("conversation_id") and meta.conversation_id:
+            kwargs.pop("conversation_id", None)
         for key, value in kwargs.items():
             setattr(meta, key, value)
         self.write_meta(meta)

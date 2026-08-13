@@ -1362,12 +1362,13 @@ class AutonomousRunner:
         meta_kwargs: dict[str, Any] = {
             "phase": state.phase.name,
             "attempt": attempt,
-            "session_id": session_id,
             "model": self._profile.model,
             "effort": self._profile.effort,
             "preset": self._profile.preset,
             "capacity": self._last_capacity_name,
         }
+        if session_id:
+            meta_kwargs["session_id"] = session_id
         # Never clobber an explicit operator stop (or other non-derived status)
         # by forcing status="active" on every persist.
         if status != "active":

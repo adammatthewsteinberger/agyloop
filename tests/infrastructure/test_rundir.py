@@ -38,6 +38,18 @@ def test_update_meta_persists_conversation_id_after_first_turn(tmp_path: Path) -
     assert directory.read_meta().conversation_id == "from-runner"
 
 
+def test_update_meta_preserves_conversation_id_when_session_id_is_none(
+    tmp_path: Path,
+) -> None:
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    original = "conv-resume-id"
+    directory.update_meta(conversation_id=original)
+    directory.update_meta(session_id=None, phase="WAITING", status="waiting")
+    meta = directory.read_meta()
+    assert meta.conversation_id == original
+    assert meta.status == "waiting"
+
+
 def test_write_meta_fsyncs(tmp_path: Path) -> None:
     synced: list[int] = []
     real_fsync = os.fsync

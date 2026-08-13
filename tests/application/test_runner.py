@@ -6,6 +6,7 @@ import asyncio
 import time
 from collections.abc import Coroutine
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -21,6 +22,8 @@ from agyloop.domain.control import (
     StopCommand,
 )
 from agyloop.domain.waiting import WaitPolicyConfig
+from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
+from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
 from tests.application.fakes import (
     CONTINUE_VERDICT,
     DONE_VERDICT,
@@ -243,6 +246,40 @@ def test_authentication_failure_is_terminal_and_never_retried() -> None:
         assert sleeper.wait_log == []
         assert gateway.sent_prompts == []
         assert progress.finishes == [(False, "authentication failed")]
+
+    run(body())
+
+
+def test_preflight_persist_preserves_resumed_conversation_id(tmp_path: Path) -> None:
+    """Resume preflight persist must not erase a known conversation_id with None."""
+
+    async def body() -> None:
+        directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+        original = "conv-existing"
+        directory.update_meta(conversation_id=original)
+        clock = FakeClock(start=NOW)
+        runner = AutonomousRunner(
+            agent_gateway=FakeAgentGateway([]),
+            capacity_probe=FakeCapacityProbe([credits_exhausted_signals()]),
+            clock=clock,
+            sleeper=FakeSleeper(clock),
+            audit_log=FakeAuditLog(),
+            progress=FakeProgressReporter(),
+            wait_policy=WaitPolicyConfig(credits_probe_interval=timedelta(seconds=1)),
+            run_id=directory.read_meta().run_id,
+            event_sink=FakeEventSink(),
+            state_store=FakeStateStore(),
+            session_lock=FakeSessionLock(),
+            save_points=FakeSavePointStore(),
+            meta_updater=directory.update_meta,
+            run_control=FakeRunControl(script=[[StopCommand()]]),
+        )
+        result = await runner.run(initial_prompt="resume", continue_prompt="keep going")
+        assert result.success is False
+        assert directory.read_meta().conversation_id == original
+        ref = RunRegistryCatalog().most_recent(str(tmp_path))
+        assert ref is not None
+        assert ref.session_id == original
 
     run(body())
 
