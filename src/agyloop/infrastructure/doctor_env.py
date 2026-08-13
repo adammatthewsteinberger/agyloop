@@ -21,6 +21,22 @@ def _truthy(value: str | None) -> bool:
     return (value or "").strip().lower() in _TRUTHY
 
 
+def developer_api_key(environ: Mapping[str, str]) -> tuple[str | None, str | None]:
+    """Return ``(key, source)`` for the Developer API lane.
+
+    ``GOOGLE_API_KEY`` wins when both are set (same lane, not a conflict).
+    The Antigravity SDK validates ``LocalAgentConfig.api_key`` or
+    ``GEMINI_API_KEY``; doctor and REST already used ``GOOGLE_API_KEY``.
+    """
+    google = (environ.get("GOOGLE_API_KEY") or "").strip()
+    if google:
+        return google, "GOOGLE_API_KEY"
+    gemini = (environ.get("GEMINI_API_KEY") or "").strip()
+    if gemini:
+        return gemini, "GEMINI_API_KEY"
+    return None, None
+
+
 class RealDoctorEnvironment:
     def __init__(
         self,
@@ -32,7 +48,7 @@ class RealDoctorEnvironment:
         self._home = home if home is not None else Path.home()
 
     def resolve_auth(self) -> AuthResolution:
-        api_key = self._environ.get("GOOGLE_API_KEY")
+        api_key, key_source = developer_api_key(self._environ)
         vertex_flag: str | None = None
         if _truthy(self._environ.get("GOOGLE_GENAI_USE_VERTEXAI")):
             vertex_flag = "GOOGLE_GENAI_USE_VERTEXAI"
@@ -46,8 +62,8 @@ class RealDoctorEnvironment:
                 source="conflict",
                 authenticated=False,
                 detail=(
-                    "GOOGLE_API_KEY and Vertex/Enterprise env are both set; "
-                    "doctor will not guess the effective lane"
+                    "GOOGLE_API_KEY/GEMINI_API_KEY and Vertex/Enterprise env "
+                    "are both set; doctor will not guess the effective lane"
                 ),
             )
         if vertex_flag is not None:
@@ -65,11 +81,12 @@ class RealDoctorEnvironment:
                 detail=detail,
             )
         if api_key:
+            source = key_source or "GOOGLE_API_KEY"
             return AuthResolution(
                 lane="developer_api",
-                source="GOOGLE_API_KEY",
+                source=source,
                 authenticated=True,
-                detail="Developer API via GOOGLE_API_KEY",
+                detail=f"Developer API via {source}",
             )
         if adc_source is not None:
             return AuthResolution(
@@ -85,7 +102,7 @@ class RealDoctorEnvironment:
             lane="unresolved",
             source="none",
             authenticated=False,
-            detail="no GOOGLE_API_KEY and no ADC",
+            detail="no GOOGLE_API_KEY/GEMINI_API_KEY and no ADC",
         )
 
     def _adc_source(self) -> str | None:

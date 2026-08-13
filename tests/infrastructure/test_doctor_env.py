@@ -18,6 +18,7 @@ def _env(
 ) -> RealDoctorEnvironment:
     for key in (
         "GOOGLE_API_KEY",
+        "GEMINI_API_KEY",
         "GOOGLE_APPLICATION_CREDENTIALS",
         "GOOGLE_GENAI_USE_VERTEXAI",
         "GOOGLE_GENAI_USE_ENTERPRISE",
@@ -91,6 +92,28 @@ def test_vertex_env_plus_adc_selects_enterprise_lane(
     assert auth.authenticated is True
     assert auth.lane == "enterprise"
     assert "GOOGLE_GENAI_USE_VERTEXAI" in auth.source
+
+
+def test_gemini_api_key_selects_developer_api_lane(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    env = _env(monkeypatch, home=tmp_path, values={"GEMINI_API_KEY": "gemini-key"})
+    auth = env.resolve_auth()
+    assert auth.authenticated is True
+    assert auth.lane == "developer_api"
+    assert auth.source == "GEMINI_API_KEY"
+
+
+def test_google_api_key_wins_over_gemini_api_key(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    env = _env(
+        monkeypatch,
+        home=tmp_path,
+        values={"GOOGLE_API_KEY": "google-key", "GEMINI_API_KEY": "gemini-key"},
+    )
+    auth = env.resolve_auth()
+    assert auth.source == "GOOGLE_API_KEY"
 
 
 def test_neither_api_key_nor_adc_is_unauthenticated(

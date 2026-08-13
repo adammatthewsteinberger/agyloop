@@ -16,7 +16,8 @@ from pathlib import Path
 from typing import Any
 
 from agyloop.application.dto import TurnOutcome
-from agyloop.domain.classify import TurnSignals
+from agyloop.domain.capacity import Available
+from agyloop.domain.classify import TurnSignals, classify
 from agyloop.domain.errors import AgentConfigError
 from agyloop.domain.model_profile import ModelEffortProfile
 from agyloop.infrastructure.agent.cli_argv import AgyCliInvocation, build_agy_argv
@@ -98,19 +99,25 @@ class AgyCliAgentGateway:
             kwargs["print_timeout"] = self._print_timeout
         invocation = build_agy_argv(**kwargs)
         result = self._runner(invocation, cwd=self._cwd)
-        stdout = result.stdout or ""
-        stderr = result.stderr or ""
-        combined = stdout + stderr
+        stdout = (result.stdout or "").strip()
+        stderr = (result.stderr or "").strip()
+        combined = "\n".join(part for part in (stdout, stderr) if part)
         if result.returncode != 0:
-            return outcome_from_exception(
-                RuntimeError(combined.strip() or f"agy exited {result.returncode}"),
-                output_text=stdout,
+            outcome = outcome_from_exception(
+                RuntimeError(combined or f"agy exited {result.returncode}"),
+                output_text=combined,
                 session_id=self._conversation_id,
             )
+            if isinstance(classify(outcome.signals), Available):
+                raise AgentConfigError(combined or f"agy exited {result.returncode}")
+            return outcome
+        printed = stdout or stderr
+        if not printed:
+            raise AgentConfigError("agy exited 0 with empty print (stdout and stderr were blank)")
         return TurnOutcome(
             signals=TurnSignals(),
             verdict=None,
-            output_text=stdout,
+            output_text=printed,
             session_id=self._conversation_id,
         )
 

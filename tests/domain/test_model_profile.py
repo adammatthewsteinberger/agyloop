@@ -37,7 +37,7 @@ def test_default_aliases_are_three_distinct_skus() -> None:
     from agyloop.domain.model_profile import DEFAULT_MODEL_MEDIUM
 
     assert len({DEFAULT_MODEL_LOW, DEFAULT_MODEL_MEDIUM, DEFAULT_MODEL_HIGH}) == 3
-    assert DEFAULT_MODEL_LOW == "gemini-2.5-flash-lite"
+    assert DEFAULT_MODEL_LOW == "gemini-flash-lite-latest"
     assert DEFAULT_MODEL_MEDIUM == "gemini-2.5-flash"
     assert DEFAULT_MODEL_HIGH == "gemini-2.5-pro"
 

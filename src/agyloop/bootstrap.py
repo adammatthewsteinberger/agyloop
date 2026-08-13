@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import shutil
 import sys
 import time
@@ -48,7 +49,7 @@ from agyloop.infrastructure.agent.probe import AntigravityCapacityProbe
 from agyloop.infrastructure.api.binder import build_api_click_group as _build_api_click_group
 from agyloop.infrastructure.config import load_config
 from agyloop.infrastructure.control import FileRunControl
-from agyloop.infrastructure.doctor_env import RealDoctorEnvironment
+from agyloop.infrastructure.doctor_env import RealDoctorEnvironment, developer_api_key
 from agyloop.infrastructure.events import JsonlRunEventSink
 from agyloop.infrastructure.git_savepoints import GitSavePointStore
 from agyloop.infrastructure.logging import StructlogAppLogger, configure_logging
@@ -179,6 +180,7 @@ def _build_gateway(
     unsafe_skip_permissions: bool,
     add_dirs: list[str] | None = None,
     on_event: Any = None,
+    api_key: str | None = None,
 ) -> AgentGateway:
     match kind:
         case "cli":
@@ -198,6 +200,7 @@ def _build_gateway(
                 strict_autonomy=strict_autonomy,
                 add_dirs=add_dirs,
                 on_event=on_event,
+                api_key=api_key,
             )
         case _:
             assert_never(kind)
@@ -258,6 +261,7 @@ def build_runner(
         run_id=run_id,
     )
     extra_dirs = list(add_dirs or [])
+    api_key, _source = developer_api_key(os.environ)
     agent_gateway = _build_gateway(
         kind=kind,
         cwd=cwd,
@@ -269,12 +273,15 @@ def build_runner(
         unsafe_skip_permissions=unsafe_skip_permissions,
         add_dirs=extra_dirs or None,
         on_event=lambda payload: event_sink.emit("sdk.event", dict(payload)),
+        api_key=api_key,
     )
     probe: CapacityProbe
     if no_probe:
         probe = _NoOpCapacityProbe()
     else:
-        probe = AntigravityCapacityProbe(cwd=str(cwd), model=config.model or model)
+        probe = AntigravityCapacityProbe(
+            cwd=str(cwd), model=config.model or model, api_key=api_key
+        )
     wait_policy = WaitPolicyConfig(
         max_wait=timedelta(seconds=config.max_wait_seconds) if config.max_wait_seconds else None,
         no_probe=no_probe,
@@ -507,13 +514,15 @@ def run_status(cwd: Path, run_id: str | None = None) -> dict[str, Any]:
         if isinstance(loaded, dict):
             live = loaded
     latest_snap = directory.snapshots_root / "latest.json"
-    reported = status if status == "orphaned" else live.get("status", status)
+    terminal = status in {"failed", "finished", "orphaned"}
+    reported = status if terminal else live.get("status", status)
+    phase = meta.phase if terminal and meta.phase else live.get("phase", meta.phase)
     return {
         "run_id": meta.run_id,
         "status": reported,
         "pid": meta.pid,
         "pid_alive": alive,
-        "phase": live.get("phase", meta.phase),
+        "phase": phase,
         "attempt": live.get("attempt", meta.attempt),
         "session_id": live.get("session_id", meta.conversation_id),
         "model": live.get("model", meta.model),

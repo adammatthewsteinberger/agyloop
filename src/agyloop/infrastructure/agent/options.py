@@ -83,8 +83,9 @@ def build_local_config(
 ) -> LocalAgentConfig:
     """Construct a headless, autonomous ``LocalAgentConfig``.
 
-    Does not require ``GOOGLE_API_KEY`` at construction time; the SDK reads
-    credentials when the Agent session starts.
+    Does not require a key at construction time; bootstrap passes
+    ``GOOGLE_API_KEY`` or ``GEMINI_API_KEY`` as ``api_key``. The SDK also
+    reads ``GEMINI_API_KEY`` itself if ``api_key`` is unset.
     """
     workspace = str(Path(cwd).resolve())
     extra_dirs = [str(Path(path).resolve()) for path in (add_dirs or ())]

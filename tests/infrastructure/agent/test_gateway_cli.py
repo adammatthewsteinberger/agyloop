@@ -51,6 +51,50 @@ async def test_cli_gateway_default_sandbox_argv(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_cli_gateway_uses_stderr_when_stdout_empty(tmp_path: Path) -> None:
+    scripted = _ScriptedAgy(
+        [
+            subprocess.CompletedProcess(
+                args=["agy"],
+                returncode=0,
+                stdout="",
+                stderr="pong\nAGYLOOP_TASK_FULLY_COMPLETE\n",
+            )
+        ]
+    )
+    gateway = AgyCliAgentGateway(cwd=str(tmp_path), runner=scripted)
+    outcome = await gateway.send_turn("go")
+    assert "pong" in (outcome.output_text or "")
+
+
+@pytest.mark.asyncio
+async def test_cli_gateway_empty_print_is_config_error(tmp_path: Path) -> None:
+    scripted = _ScriptedAgy(
+        [subprocess.CompletedProcess(args=["agy"], returncode=0, stdout="", stderr="")]
+    )
+    gateway = AgyCliAgentGateway(cwd=str(tmp_path), runner=scripted)
+    with pytest.raises(AgentConfigError, match="empty print"):
+        await gateway.send_turn("go")
+
+
+@pytest.mark.asyncio
+async def test_cli_gateway_nonzero_non_capacity_is_config_error(tmp_path: Path) -> None:
+    scripted = _ScriptedAgy(
+        [
+            subprocess.CompletedProcess(
+                args=["agy"],
+                returncode=1,
+                stdout="",
+                stderr="sandbox: command failed",
+            )
+        ]
+    )
+    gateway = AgyCliAgentGateway(cwd=str(tmp_path), runner=scripted)
+    with pytest.raises(AgentConfigError, match="sandbox: command failed"):
+        await gateway.send_turn("go")
+
+
+@pytest.mark.asyncio
 async def test_cli_gateway_maps_429_into_window_signals(tmp_path: Path) -> None:
     scripted = _ScriptedAgy(
         [

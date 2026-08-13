@@ -3,6 +3,7 @@
 import inspect
 from pathlib import Path
 
+import pytest
 from google.antigravity.types import BuiltinTools
 
 from agyloop.bootstrap import build_runner, parse_gateway
@@ -32,6 +33,17 @@ def test_build_runner_strict_autonomy_disables_ask_question(tmp_path: Path) -> N
     assert isinstance(context.gateway, AntigravityAgentGateway)
     cfg = context.gateway._config()
     assert BuiltinTools.ASK_QUESTION in (cfg.capabilities.disabled_tools or [])
+
+
+def test_build_runner_passes_google_api_key_into_sdk_gateway(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-google-key")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    context = build_runner(cwd=tmp_path, no_probe=True)
+    assert isinstance(context.gateway, AntigravityAgentGateway)
+    assert context.gateway._api_key == "test-google-key"
+    assert context.gateway._config().api_key == "test-google-key"
 
 
 def test_build_runner_cli_gateway_and_ramp(tmp_path: Path) -> None:

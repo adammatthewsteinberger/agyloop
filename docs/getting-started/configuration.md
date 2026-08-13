@@ -7,7 +7,7 @@ Set **one** lane. `agyloop doctor` reports what it can prove.
 **Developer API**
 
 ```bash
-export GOOGLE_API_KEY=...
+export GOOGLE_API_KEY=...   # or GEMINI_API_KEY — same Developer lane
 agyloop doctor
 ```
 
@@ -18,8 +18,10 @@ export GOOGLE_GENAI_USE_VERTEXAI=1   # or GOOGLE_GENAI_USE_ENTERPRISE=1
 agyloop doctor
 ```
 
-If `GOOGLE_API_KEY` and a Vertex flag are both set, doctor reports a conflict,
-fails the auth check, and does not pick a lane.
+If `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) and a Vertex flag are both set, doctor
+reports a conflict, fails the auth check, and does not pick a lane. The SDK
+path forwards the Developer key into `LocalAgentConfig(api_key=...)` so
+`GOOGLE_API_KEY` alone is enough.
 
 ## `agyloop.toml`
 
@@ -34,7 +36,7 @@ gateway = "sdk"
 ramp = 0
 
 [model]
-low = "gemini-2.5-flash-lite"
+low = "gemini-flash-lite-latest"
 medium = "gemini-2.5-flash"
 high = "gemini-2.5-pro"
 ```
@@ -47,7 +49,8 @@ USD estimate reaches the cap.
 
 | Variable | Purpose |
 |---|---|
-| `GOOGLE_API_KEY` | Developer API key |
+| `GOOGLE_API_KEY` | Developer API key (preferred) |
+| `GEMINI_API_KEY` | Same Developer lane if `GOOGLE_API_KEY` is unset |
 | `GOOGLE_ACCESS_TOKEN` / `CLOUDSDK_AUTH_ACCESS_TOKEN` | Bearer token for `agyloop api --lane vertex` |
 | `GOOGLE_GENAI_USE_VERTEXAI` / `GOOGLE_GENAI_USE_ENTERPRISE` | Select Vertex lane for doctor / SDK |
 | `GOOGLE_APPLICATION_CREDENTIALS` | ADC JSON path |

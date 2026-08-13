@@ -150,9 +150,9 @@ def _authenticate(lane: ApiLane, url: str, headers: dict[str, str]) -> tuple[str
         out = dict(headers)
         out["Authorization"] = f"Bearer {token}"
         return url, out
-    key = os.environ.get("GOOGLE_API_KEY")
+    key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     if not key:
-        raise ValueError("GOOGLE_API_KEY is required for --lane developer")
+        raise ValueError("GOOGLE_API_KEY (or GEMINI_API_KEY) is required for --lane developer")
     joiner = "&" if "?" in url else "?"
     return f"{url}{joiner}{urlencode({'key': key})}", headers
 

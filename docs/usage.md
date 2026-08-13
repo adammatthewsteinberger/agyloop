@@ -12,7 +12,7 @@ guess Developer vs Enterprise when both look possible.
 **Developer API**
 
 ```bash
-export GOOGLE_API_KEY=...
+export GOOGLE_API_KEY=...   # or GEMINI_API_KEY
 agyloop doctor
 ```
 
@@ -25,8 +25,9 @@ export GOOGLE_GENAI_USE_VERTEXAI=1   # or GOOGLE_GENAI_USE_ENTERPRISE=1
 agyloop doctor
 ```
 
-If `GOOGLE_API_KEY` and a Vertex flag are both set, doctor reports a
-conflict and does not pick a lane.
+If `GOOGLE_API_KEY` (or `GEMINI_API_KEY`) and a Vertex flag are both set, doctor
+reports a conflict and does not pick a lane. The SDK forwards the Developer key
+into `LocalAgentConfig(api_key=...)`.
 
 ## Run
 

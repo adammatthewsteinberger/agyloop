@@ -77,6 +77,7 @@ def test_vertex_lane_invokes_aiplatform(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_missing_api_key_is_loud(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     gateway = GeminiRestGateway(transport=_FakeTransport())
     with pytest.raises(ValueError, match="GOOGLE_API_KEY"):
         gateway.invoke(

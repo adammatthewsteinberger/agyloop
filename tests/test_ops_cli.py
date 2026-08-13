@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from agyloop.cli.app import app
@@ -56,6 +57,22 @@ def test_status_and_runs_and_model_enqueue(tmp_path: Path) -> None:
     inbox = list(directory.inbox.glob("*.cmd.json"))
     assert len(inbox) == 1
     assert "set_model" in inbox[0].read_text(encoding="utf-8")
+
+
+def test_status_prefers_failed_meta_over_stale_live_active(tmp_path: Path) -> None:
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    run_id = directory.read_meta().run_id
+    directory.update_meta(status="failed", phase="FAILED")
+    directory.status_path.write_text(
+        json.dumps({"status": "active", "phase": "RUNNING", "run_id": run_id}),
+        encoding="utf-8",
+    )
+    status = _invoke("status", "--cwd", str(tmp_path), "--run-id", run_id)
+    assert status.exit_code == 0
+    text = _plain(status.stdout)
+    assert "status: failed" in text
+    assert "phase: FAILED" in text
+    assert "status: active" not in text
 
 
 def test_reset_refuses_without_yes(tmp_path: Path) -> None:

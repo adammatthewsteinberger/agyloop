@@ -818,6 +818,14 @@ class AutonomousRunner:
                     phase=Phase.FAILED.name,
                     capacity=self._last_capacity_name,
                 )
+                self._state_bus.publish(
+                    "run.failed",
+                    {
+                        "status": "failed",
+                        "phase": Phase.FAILED.name,
+                        "capacity": self._last_capacity_name,
+                    },
+                )
             self._release_lock()
             with contextlib.suppress(Exception):  # pragma: no cover - best-effort cleanup
                 await self._gateway.close()
