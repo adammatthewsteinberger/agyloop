@@ -73,14 +73,19 @@ class _NoOpCapacityProbe:
         return TurnOutcome(signals=TurnSignals(), verdict=None, output_text="", session_id=None)
 
 
-def _plan_seed_from_registry(cwd: Path, conversation_id: str | None) -> str | None:
+def _run_directory_for_conversation(cwd: Path, conversation_id: str | None) -> RunDirectory | None:
     if not conversation_id:
         return None
     for directory in list_run_directories(cwd):
         meta = directory.read_meta()
         if meta.conversation_id == conversation_id or meta.run_id == conversation_id:
-            return directory.read_plan_text()
+            return directory
     return None
+
+
+def _plan_seed_from_registry(cwd: Path, conversation_id: str | None) -> str | None:
+    directory = _run_directory_for_conversation(cwd, conversation_id)
+    return directory.read_plan_text() if directory is not None else None
 
 
 def build_runner(
@@ -100,7 +105,9 @@ def build_runner(
     resume: bool = False,
 ) -> RunnerContext:
     del strict_autonomy
-    run_dir = RunDirectory.create(runs_root_for(cwd), cwd=cwd, plan_path=plan_path)
+    run_dir = _run_directory_for_conversation(cwd, conversation_id) if resume else None
+    if run_dir is None:
+        run_dir = RunDirectory.create(runs_root_for(cwd), cwd=cwd, plan_path=plan_path)
     run_id = run_dir.read_meta().run_id
     trace_id = str(uuid.uuid4())
     parsed_mode = parse_user_permission_mode(permission_mode)
@@ -139,7 +146,6 @@ def build_runner(
         profile=profile,
         permission_mode=parsed_mode,
     )
-    del resume
     return RunnerContext(
         runner=runner,
         gateway=gateway,

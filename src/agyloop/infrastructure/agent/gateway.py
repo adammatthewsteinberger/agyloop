@@ -127,9 +127,10 @@ class AntigravityAgentGateway:
         return self._agent
 
     async def send_turn(self, prompt_text: str) -> TurnOutcome:
-        agent = await self._ensure_started()
         response: ChatResponse | None = None
+        agent: Agent | None = None
         try:
+            agent = await self._ensure_started()
             response = await agent.chat(prompt_text)
             output_text = await response.text()
             structured = await response.structured_output()
@@ -142,9 +143,8 @@ class AntigravityAgentGateway:
                 output_text=output_text,
                 session_id=session_id if isinstance(session_id, str) else None,
             )
-        except AntigravityValidationError as exc:
-            raise AgentConfigError(str(exc)) from exc
         except (
+            AntigravityValidationError,
             AntigravityCancelledError,
             AntigravityExecutionError,
             AntigravityConnectionError,
@@ -154,6 +154,10 @@ class AntigravityAgentGateway:
                 self._resume_degraded = True
                 await self.close()
                 return await self.send_turn(self._seeded_prompt(prompt_text))
+            if isinstance(exc, AntigravityValidationError):
+                raise AgentConfigError(str(exc)) from exc
+            if agent is None:
+                raise
             partial = partial_text_from_response(response) if response is not None else ""
             session_id = agent.conversation_id
             return outcome_from_exception(

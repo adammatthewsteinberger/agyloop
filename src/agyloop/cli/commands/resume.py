@@ -72,7 +72,6 @@ async def _resume(
     cwd = cwd_dir.resolve() if cwd_dir is not None else Path.cwd()
     catalog = bootstrap.build_session_catalog()
     conversation_id = conversation
-    plan_seed: str | None = None
     if conversation_id is None or last:
         try:
             ref = resolve_last_run(catalog, str(cwd))
@@ -81,7 +80,6 @@ async def _resume(
             raise typer.Exit(code=1) from exc
         if conversation_id is None:
             conversation_id = ref.session_id
-        plan_seed = ref.first_prompt_preview
         typer.echo(
             f"Resuming last registry run conversation_id={ref.session_id} cwd={ref.cwd}",
             err=True,
@@ -90,7 +88,6 @@ async def _resume(
     context = bootstrap.build_runner(
         cwd=cwd,
         conversation_id=conversation_id,
-        plan_seed=plan_seed,
         model=model,
         max_turns=max_turns,
         max_wait_seconds=max_wait_seconds,

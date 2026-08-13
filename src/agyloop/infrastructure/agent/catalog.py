@@ -15,8 +15,13 @@ from agyloop.infrastructure.rundir import RunDirectory, list_run_directories
 
 class RunRegistryCatalog:
     def most_recent(self, cwd: str) -> SessionRef | None:
-        refs = self.list_all(cwd)
-        return refs[-1] if refs else None
+        root = Path(cwd)
+        resumable = [
+            directory
+            for directory in list_run_directories(root)
+            if directory.read_meta().conversation_id
+        ]
+        return _to_session_ref(resumable[-1]) if resumable else None
 
     def list_all(self, cwd: str | None = None) -> list[SessionRef]:
         root = Path(cwd) if cwd is not None else Path.cwd()

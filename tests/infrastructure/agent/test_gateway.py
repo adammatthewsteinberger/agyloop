@@ -228,3 +228,97 @@ async def test_resume_failure_degrades_to_fresh_conversation_seeded_with_plan() 
     assert "- [ ] finish the plan" in agents[1].prompts[0]
     assert outcome.output_text == "resumed from plan"
     assert outcome.session_id == "n" * 32
+
+
+async def test_resume_degrades_when_agent_constructor_fails_on_conversation() -> None:
+    agents: list[_FakeAgent] = []
+    calls = {"n": 0}
+
+    def _factory(config: object) -> _FakeAgent:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise AntigravityValidationError("invalid conversation_id")
+        agent = _FakeAgent(config)
+        agents.append(agent)
+        agent.response = _FakeResponse(text="seeded")
+        agent.conversation_id = "n" * 32
+        return agent
+
+    with patch("agyloop.infrastructure.agent.gateway.Agent", side_effect=_factory):
+        gateway = AntigravityAgentGateway(
+            cwd=".",
+            conversation_id="o" * 32,
+            plan_seed="- [ ] finish the plan",
+        )
+        outcome = await gateway.send_turn("Continue exactly where you left off.")
+        await gateway.close()
+
+    assert len(agents) == 1
+    assert agents[0].config.conversation_id is None
+    assert "- [ ] finish the plan" in agents[0].prompts[0]
+    assert outcome.output_text == "seeded"
+    assert outcome.session_id == "n" * 32
+
+
+async def test_resume_degrades_when_session_enter_fails_on_conversation() -> None:
+    agents: list[_FakeAgent] = []
+    calls = {"n": 0}
+
+    def _factory(config: object) -> _FakeAgent:
+        agent = _FakeAgent(config)
+        agents.append(agent)
+        calls["n"] += 1
+        if calls["n"] == 1:
+
+            async def _boom(*_args: object) -> _FakeAgent:
+                raise AntigravityExecutionError("conversation not found")
+
+            agent.__aenter__ = _boom  # type: ignore[method-assign]
+        else:
+            agent.response = _FakeResponse(text="seeded")
+            agent.conversation_id = "n" * 32
+        return agent
+
+    with patch("agyloop.infrastructure.agent.gateway.Agent", side_effect=_factory):
+        gateway = AntigravityAgentGateway(
+            cwd=".",
+            conversation_id="o" * 32,
+            plan_seed="- [ ] finish the plan",
+        )
+        outcome = await gateway.send_turn("Continue exactly where you left off.")
+        await gateway.close()
+
+    assert len(agents) == 2
+    assert agents[1].config.conversation_id is None
+    assert "- [ ] finish the plan" in agents[1].prompts[0]
+    assert outcome.output_text == "seeded"
+
+
+async def test_resume_degrades_when_chat_validation_error_is_conversation_failure() -> None:
+    agents: list[_FakeAgent] = []
+    calls = {"n": 0}
+
+    def _factory(config: object) -> _FakeAgent:
+        agent = _FakeAgent(config)
+        agents.append(agent)
+        calls["n"] += 1
+        if calls["n"] == 1:
+            agent.response = _FakeResponse(error=AntigravityValidationError("conversation expired"))
+        else:
+            agent.response = _FakeResponse(text="seeded")
+            agent.conversation_id = "n" * 32
+        return agent
+
+    with patch("agyloop.infrastructure.agent.gateway.Agent", side_effect=_factory):
+        gateway = AntigravityAgentGateway(
+            cwd=".",
+            conversation_id="o" * 32,
+            plan_seed="- [ ] finish the plan",
+        )
+        outcome = await gateway.send_turn("Continue exactly where you left off.")
+        await gateway.close()
+
+    assert len(agents) == 2
+    assert agents[1].config.conversation_id is None
+    assert "- [ ] finish the plan" in agents[1].prompts[0]
+    assert outcome.output_text == "seeded"

@@ -40,6 +40,32 @@ def test_most_recent_returns_latest_run(tmp_path: Path) -> None:
     assert ref.session_id == "newer"
 
 
+def test_catalog_preview_is_first_line_truncated_to_200(tmp_path: Path) -> None:
+    first = "A" * 250
+    plan = tmp_path / "plan.md"
+    plan.write_text(f"{first}\n- [ ] rest of the plan stays on disk\n", encoding="utf-8")
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path, plan_path=plan)
+    directory.update_meta(conversation_id="conv-preview")
+    catalog = RunRegistryCatalog()
+    refs = catalog.list_all(str(tmp_path))
+    assert len(refs) == 1
+    assert refs[0].first_prompt_preview == first[:200]
+    plan_text = directory.read_plan_text()
+    assert plan_text is not None
+    assert "- [ ] rest of the plan stays on disk" in plan_text
+
+
+def test_most_recent_ignores_rundirs_without_conversation_id(tmp_path: Path) -> None:
+    RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path).update_meta(
+        conversation_id="real-conv"
+    )
+    RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    catalog = RunRegistryCatalog()
+    ref = catalog.most_recent(str(tmp_path))
+    assert ref is not None
+    assert ref.session_id == "real-conv"
+
+
 def test_catalog_empty_when_no_registry(tmp_path: Path) -> None:
     catalog = RunRegistryCatalog()
     assert catalog.list_all(str(tmp_path)) == []

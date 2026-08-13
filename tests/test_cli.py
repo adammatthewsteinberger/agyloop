@@ -187,6 +187,58 @@ def test_run_cli_uses_bootstrap_runner(tmp_path: Path, monkeypatch: pytest.Monke
     assert kwargs["no_probe"] is True
 
 
+def test_resume_last_seeds_from_plan_md_not_truncated_preview(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from agyloop.application.dto import RunResult
+    from agyloop.bootstrap import RunnerContext, build_runner
+    from agyloop.infrastructure.rundir import RunDirectory, list_run_directories, runs_root_for
+
+    first = "Keep this heading " + ("x" * 250)
+    plan = tmp_path / "source-plan.md"
+    plan.write_text(f"{first}\n- [ ] second line must survive degrade seed\n", encoding="utf-8")
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path, plan_path=plan)
+    directory.update_meta(conversation_id="conv-seed")
+    original_run_id = directory.read_meta().run_id
+    captured: dict[str, object] = {}
+
+    class _StubRunner:
+        async def run(self, *, initial_prompt: str, continue_prompt: str) -> RunResult:
+            del initial_prompt, continue_prompt
+            return RunResult(
+                success=True,
+                reason="done",
+                session_id="sid",
+                turns_spent=1,
+                dollars_spent=0.0,
+            )
+
+    def _build_runner(**kwargs: object) -> RunnerContext:
+        ctx = build_runner(**kwargs)  # type: ignore[arg-type]
+        captured["cli_plan_seed"] = kwargs.get("plan_seed")
+        captured["gateway_seed"] = ctx.gateway._plan_seed  # type: ignore[attr-defined]
+        captured["run_id"] = ctx.run_id
+        return RunnerContext(
+            runner=_StubRunner(),  # type: ignore[arg-type]
+            gateway=ctx.gateway,
+            run_dir=ctx.run_dir,
+            run_id=ctx.run_id,
+            trace_id=ctx.trace_id,
+        )
+
+    monkeypatch.setattr("agyloop.bootstrap.build_runner", _build_runner)
+    result = _invoke("resume", "--last", "--cwd", str(tmp_path), "--no-probe")
+    assert result.exception is None, result.exception
+    assert result.exit_code == 0
+    cli_seed = captured["cli_plan_seed"]
+    assert cli_seed != first[:200]
+    gateway_seed = captured["gateway_seed"]
+    assert isinstance(gateway_seed, str)
+    assert "- [ ] second line must survive degrade seed" in gateway_seed
+    assert captured["run_id"] == original_run_id
+    assert len(list_run_directories(tmp_path)) == 1
+
+
 def test_resume_without_registry_fails_cleanly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
