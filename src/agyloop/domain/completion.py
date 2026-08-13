@@ -10,6 +10,47 @@ from dataclasses import dataclass
 
 DEFAULT_DONE_MARKER = "AGYLOOP_TASK_FULLY_COMPLETE"
 
+DONE_MARKER_INSTRUCTION = (
+    f"When the entire task is fully complete, include the exact token "
+    f"{DEFAULT_DONE_MARKER} in your final message. This marker is mandatory "
+    f"even when you also emit structured output; if structured output is "
+    f"unavailable it is the completion signal. Never treat a missing verdict "
+    f"as completion."
+)
+
+COMPLETION_RESPONSE_SCHEMA: dict[str, object] = {
+    "type": "object",
+    "title": "AgyloopCompletionVerdict",
+    "description": (
+        "Structured completion verdict for an unattended run. "
+        "blocked_on outranks complete. A missing verdict is never completion."
+    ),
+    "properties": {
+        "complete": {
+            "type": "boolean",
+            "description": "True only when the entire task is finished.",
+        },
+        "remaining_work": {
+            "type": "array",
+            "items": {"type": "string"},
+            "description": "Work still to do. Waitable self-started work belongs here.",
+        },
+        "blocked_on": {
+            "type": ["string", "null"],
+            "description": (
+                "Non-null only for a true external or human blocker. "
+                "A non-null value stops the autonomous run permanently."
+            ),
+        },
+        "summary": {
+            "type": "string",
+            "description": "Short summary of what this turn accomplished.",
+        },
+    },
+    "required": ["complete", "remaining_work", "blocked_on", "summary"],
+    "additionalProperties": False,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class Done:

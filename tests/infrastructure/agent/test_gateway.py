@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from unittest.mock import patch
 
 import pytest
@@ -9,6 +10,7 @@ from google.antigravity.types import AntigravityExecutionError, AntigravityValid
 
 from agyloop.application.dto import TurnOutcome
 from agyloop.domain.classify import TurnSignals
+from agyloop.domain.completion import Blocked, Continue, Done, evaluate
 from agyloop.domain.errors import AgentConfigError
 from agyloop.infrastructure.agent.gateway import AntigravityAgentGateway
 
@@ -121,3 +123,74 @@ async def test_set_permission_mode_accepts_agyloop_enum_not_vendor_types(
     await gateway.send_turn("go")
     await gateway.close()
     assert fake_agent.config is not None
+
+
+async def test_send_turn_structured_complete_evaluates_to_done(fake_agent: _FakeAgent) -> None:
+    fake_agent.response = _FakeResponse(
+        text="implemented",
+        structured={
+            "complete": True,
+            "remaining_work": [],
+            "blocked_on": None,
+            "summary": "all green",
+        },
+    )
+    gateway = AntigravityAgentGateway(cwd=".")
+    outcome = await gateway.send_turn("go")
+    await gateway.close()
+    result = evaluate(structured=outcome.verdict, output_text=outcome.output_text)
+    assert result == Done(summary="all green")
+    assert outcome.verdict is not None
+    assert "antigravity" not in type(outcome.verdict).__module__
+
+
+async def test_send_turn_structured_blocked_outranks_complete(fake_agent: _FakeAgent) -> None:
+    fake_agent.response = _FakeResponse(
+        text="cannot proceed",
+        structured={
+            "complete": True,
+            "remaining_work": [],
+            "blocked_on": "needs human for MCP OAuth",
+            "summary": "looks done",
+        },
+    )
+    gateway = AntigravityAgentGateway(cwd=".")
+    outcome = await gateway.send_turn("go")
+    await gateway.close()
+    result = evaluate(structured=outcome.verdict, output_text=outcome.output_text)
+    assert result == Blocked(reason="needs human for MCP OAuth")
+
+
+async def test_send_turn_none_structured_falls_back_to_marker(fake_agent: _FakeAgent) -> None:
+    fake_agent.response = _FakeResponse(
+        text="wrapping up\nAGYLOOP_TASK_FULLY_COMPLETE\n",
+        structured=None,
+    )
+    gateway = AntigravityAgentGateway(cwd=".")
+    outcome = await gateway.send_turn("go")
+    await gateway.close()
+    assert outcome.verdict is None
+    result = evaluate(structured=outcome.verdict, output_text=outcome.output_text)
+    assert result == Done(summary="")
+
+
+async def test_send_turn_none_structured_without_marker_is_continue_never_done(
+    fake_agent: _FakeAgent,
+) -> None:
+    fake_agent.response = _FakeResponse(text="still working", structured=None)
+    gateway = AntigravityAgentGateway(cwd=".")
+    outcome = await gateway.send_turn("go")
+    await gateway.close()
+    result = evaluate(structured=outcome.verdict, output_text=outcome.output_text)
+    assert isinstance(result, Continue)
+    assert not isinstance(result, Done)
+
+
+async def test_gateway_config_wires_finish_tool_schema(fake_agent: _FakeAgent) -> None:
+    gateway = AntigravityAgentGateway(cwd=".")
+    await gateway.send_turn("go")
+    await gateway.close()
+    schema_json = fake_agent.config.capabilities.finish_tool_schema_json
+    assert schema_json is not None
+    parsed = json.loads(schema_json)
+    assert "complete" in parsed["properties"]

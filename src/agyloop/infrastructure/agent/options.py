@@ -7,6 +7,7 @@ scopes unless the permission mode is ``yolo``.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -18,6 +19,10 @@ from google.antigravity.types import (
     TemplatedSystemInstructions,
 )
 
+from agyloop.domain.completion import (
+    COMPLETION_RESPONSE_SCHEMA,
+    DONE_MARKER_INSTRUCTION,
+)
 from agyloop.domain.permission import (
     DEFAULT_USER_PERMISSION_MODE,
     UserPermissionMode,
@@ -30,7 +35,7 @@ from agyloop.infrastructure.agent.autonomy import (
 
 
 def _additive_system_instructions(system_prompt_append: str = "") -> TemplatedSystemInstructions:
-    content = AUTONOMY_SYSTEM_PROMPT_FRAGMENT
+    content = f"{AUTONOMY_SYSTEM_PROMPT_FRAGMENT}\n\n{DONE_MARKER_INSTRUCTION}"
     extra = system_prompt_append.strip()
     if extra:
         content = f"{content}\n\n{extra}"
@@ -39,10 +44,18 @@ def _additive_system_instructions(system_prompt_append: str = "") -> TemplatedSy
     )
 
 
+def _finish_tool_schema_json() -> str:
+    return json.dumps(COMPLETION_RESPONSE_SCHEMA)
+
+
 def _capabilities_for(permission_mode: UserPermissionMode) -> CapabilitiesConfig:
+    schema_json = _finish_tool_schema_json()
     if permission_mode == "safe":
-        return CapabilitiesConfig(enabled_tools=BuiltinTools.nondestructive())
-    return CapabilitiesConfig()
+        return CapabilitiesConfig(
+            enabled_tools=BuiltinTools.nondestructive(),
+            finish_tool_schema_json=schema_json,
+        )
+    return CapabilitiesConfig(finish_tool_schema_json=schema_json)
 
 
 def build_local_config(
@@ -75,4 +88,5 @@ def build_local_config(
         conversation_id=conversation_id,
         model=model,
         api_key=api_key,
+        response_schema=COMPLETION_RESPONSE_SCHEMA,
     )

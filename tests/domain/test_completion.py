@@ -1,5 +1,7 @@
 from agyloop.domain.completion import (
+    COMPLETION_RESPONSE_SCHEMA,
     DEFAULT_DONE_MARKER,
+    DONE_MARKER_INSTRUCTION,
     Blocked,
     Continue,
     Done,
@@ -10,6 +12,13 @@ from agyloop.domain.completion import (
 
 def test_done_marker_is_agyloop_branded() -> None:
     assert DEFAULT_DONE_MARKER == "AGYLOOP_TASK_FULLY_COMPLETE"
+
+
+def test_completion_schema_names_verdict_fields() -> None:
+    properties = COMPLETION_RESPONSE_SCHEMA["properties"]
+    assert isinstance(properties, dict)
+    assert set(properties) == {"complete", "remaining_work", "blocked_on", "summary"}
+    assert DEFAULT_DONE_MARKER in DONE_MARKER_INSTRUCTION
 
 
 def test_structured_complete_is_done() -> None:

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import json
+
 from google.antigravity.hooks import policy
 from google.antigravity.types import CustomSystemInstructions
 from google.antigravity.utils.interactive import AskQuestionHook, ToolConfirmationHook
 
+from agyloop.domain.completion import DEFAULT_DONE_MARKER
 from agyloop.infrastructure.agent.options import build_local_config
 from agyloop.infrastructure.agent.policies import (
     config_has_allow_all,
@@ -51,3 +54,44 @@ def test_local_config_scopes_workspace_and_denies_destructive_commands() -> None
     names = {p.name for p in cfg.policies}
     assert "workspace_only" in names
     assert any("destructive" in (p.name or "") for p in cfg.policies)
+
+
+def _schema_properties(schema: object) -> set[str]:
+    if isinstance(schema, str):
+        parsed: object = json.loads(schema)
+    else:
+        parsed = schema
+    assert isinstance(parsed, dict)
+    properties = parsed.get("properties")
+    assert isinstance(properties, dict)
+    return set(properties)
+
+
+def test_local_config_wires_finish_tool_schema_json() -> None:
+    cfg = build_local_config(cwd=".")
+    schema_json = cfg.capabilities.finish_tool_schema_json
+    assert schema_json is not None
+    fields = _schema_properties(schema_json)
+    assert fields >= {"complete", "remaining_work", "blocked_on", "summary"}
+
+
+def test_local_config_wires_response_schema() -> None:
+    cfg = build_local_config(cwd=".")
+    schema = cfg.response_schema
+    assert schema is not None
+    fields = _schema_properties(schema)
+    assert fields >= {"complete", "remaining_work", "blocked_on", "summary"}
+
+
+def test_safe_mode_still_wires_finish_tool_schema() -> None:
+    cfg = build_local_config(cwd=".", permission_mode="safe")
+    assert cfg.capabilities.finish_tool_schema_json is not None
+    fields = _schema_properties(cfg.capabilities.finish_tool_schema_json)
+    assert "complete" in fields
+
+
+def test_local_config_appends_done_marker_as_fallback_instruction() -> None:
+    cfg = build_local_config(cwd=".")
+    rendered = cfg._get_system_instructions()
+    text = str(rendered)
+    assert DEFAULT_DONE_MARKER in text

@@ -16,11 +16,13 @@ from google.antigravity.types import (
 from agyloop.application.dto import TurnOutcome
 from agyloop.domain.capacity import Available, WindowExhausted
 from agyloop.domain.classify import classify
+from agyloop.domain.completion import Blocked, Continue, Done, evaluate
 from agyloop.domain.errors import AgentConfigError
 from agyloop.infrastructure.agent.translate import (
     outcome_from_chunks,
     outcome_from_exception,
     signals_from_exception,
+    verdict_from_structured,
 )
 
 
@@ -79,3 +81,67 @@ def test_chunks_preserve_partial_text_and_thoughts() -> None:
     assert outcome.output_text == "hello"
     assert outcome.session_id == "abc"
     assert outcome.signals.exception_type is None
+
+
+def _evaluate_structured(blob: object, output_text: str = "") -> Done | Continue | Blocked:
+    return evaluate(structured=verdict_from_structured(blob), output_text=output_text)
+
+
+def test_structured_output_complete_maps_to_done() -> None:
+    blob = {
+        "complete": True,
+        "remaining_work": [],
+        "blocked_on": None,
+        "summary": "Implemented and tested the parser; all gates green.",
+    }
+    result = _evaluate_structured(blob)
+    assert result == Done(summary="Implemented and tested the parser; all gates green.")
+
+
+def test_structured_output_incomplete_maps_to_continue() -> None:
+    blob = {
+        "complete": False,
+        "remaining_work": ["write tests", "open PR"],
+        "blocked_on": None,
+        "summary": "parser drafted",
+    }
+    result = _evaluate_structured(blob)
+    assert result == Continue(remaining_work=("write tests", "open PR"))
+    assert not isinstance(result, Done)
+
+
+def test_structured_output_blocked_on_outranks_complete() -> None:
+    blob = {
+        "complete": True,
+        "remaining_work": [],
+        "blocked_on": "waiting on MCP OAuth",
+        "summary": "looks done",
+    }
+    result = _evaluate_structured(blob)
+    assert result == Blocked(reason="waiting on MCP OAuth")
+
+
+def test_structured_output_none_falls_back_to_marker() -> None:
+    result = _evaluate_structured(None, output_text="wrapping up\nAGYLOOP_TASK_FULLY_COMPLETE\n")
+    assert result == Done(summary="")
+
+
+def test_structured_output_none_without_marker_is_continue_never_done() -> None:
+    result = _evaluate_structured(None, output_text="still working on the parser")
+    assert isinstance(result, Continue)
+    assert not isinstance(result, Done)
+
+
+def test_chunks_with_structured_complete_evaluate_to_done() -> None:
+    outcome = outcome_from_chunks(
+        [Text(step_index=1, text="shipped")],
+        structured={
+            "complete": True,
+            "remaining_work": [],
+            "blocked_on": None,
+            "summary": "all green",
+        },
+    )
+    result = evaluate(structured=outcome.verdict, output_text=outcome.output_text)
+    assert result == Done(summary="all green")
+    assert "antigravity" not in type(outcome.verdict).__module__
