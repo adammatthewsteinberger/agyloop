@@ -7,7 +7,7 @@ auth → capacity rejection → completion Done → blocked_on → budget → Co
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from enum import Enum, auto
 
@@ -148,13 +148,16 @@ def decide_after_probe(
     config: WaitPolicyConfig = DEFAULT_WAIT_POLICY_CONFIG,
 ) -> tuple[RunState, Decision]:
     """Called once a throwaway probe turn has completed while waiting."""
+    probed = replace(state, ledger=state.ledger.spend_turn().spend_attempt())
     if isinstance(capacity, AuthenticationFailed):
-        return _fail(state, "authentication failed"), Finish(
+        return _fail(probed, "authentication failed"), Finish(
             success=False, reason="authentication failed"
         )
+    if probed.ledger.any_exhausted:
+        return _fail(probed, "budget exhausted"), Finish(success=False, reason="budget exhausted")
     if isinstance(capacity, Available):
-        return RunState(phase=Phase.RUNNING, ledger=state.ledger), SendTurn()
-    return _enter_waiting(state, capacity, now=now, config=config, is_reprobe=True)
+        return replace(probed, phase=Phase.RUNNING), SendTurn()
+    return _enter_waiting(probed, capacity, now=now, config=config, is_reprobe=True)
 
 
 def _enter_waiting(

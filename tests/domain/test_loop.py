@@ -196,6 +196,15 @@ def test_after_probe_available_resumes_running() -> None:
     assert isinstance(decision, SendTurn)
 
 
+def test_after_probe_spends_turn_and_attempt_then_stops_at_budget() -> None:
+    state = fresh_state(Budget(max_turns=1, max_attempts=1))
+    state, decision = decide_after_probe(state, CreditsExhausted(), now=NOW)
+    assert state.ledger.turns_spent == 1
+    assert state.ledger.attempts_spent == 1
+    assert state.phase == Phase.FAILED
+    assert decision == Finish(success=False, reason="budget exhausted")
+
+
 def test_after_probe_still_exhausted_reschedules() -> None:
     state, decision = decide_after_probe(fresh_state(), CreditsExhausted(), now=NOW)
     assert state.phase == Phase.WAITING
