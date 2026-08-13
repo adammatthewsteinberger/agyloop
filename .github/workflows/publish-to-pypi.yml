@@ -5,6 +5,7 @@ name: Publish to PyPI
 # `publish-to-pypi.yml` exactly. Renaming this file requires updating that
 # configuration at pypi.org first, or every subsequent release will fail
 # with an OIDC identity mismatch. See docs/contributing/release-process.md.
+# (reindexed for workflow_dispatch discovery)
 
 on:
   release:
