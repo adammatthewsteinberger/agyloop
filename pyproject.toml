@@ -1,0 +1,105 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agyloop"
+version = "0.1.0"
+description = "Autonomous Google Antigravity and Gemini session runner that never blocks on a human."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Adam Matthew Steinberger", email = "adam@matthewsteinberger.com" },
+]
+keywords = ["google-antigravity", "gemini", "cli", "automation", "agent", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+dependencies = [
+    "anyio>=4.0",
+    "google-antigravity>=0.1.10",
+    "structlog>=24.1",
+    "textual>=1.0",
+    "typer>=0.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/adammatthewsteinberger/agyloop"
+Repository = "https://github.com/adammatthewsteinberger/agyloop"
+Issues = "https://github.com/adammatthewsteinberger/agyloop/issues"
+
+[project.optional-dependencies]
+dev = [
+    "bandit>=1.7",
+    "build>=1.2",
+    "hypothesis>=6.100",
+    "import-linter>=2.0",
+    "mypy>=1.10",
+    "pip-audit>=2.7",
+    "pytest>=8.0",
+    "ruff>=0.6",
+    "twine>=5.0",
+]
+
+[project.scripts]
+agyloop = "agyloop.cli.app:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agyloop"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["agyloop"]
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.importlinter]
+root_package = "agyloop"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Onion layering"
+type = "layers"
+layers = [
+    "agyloop.cli",
+    "agyloop.bootstrap",
+    "agyloop.application",
+    "agyloop.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "Infrastructure only reachable from bootstrap"
+type = "forbidden"
+source_modules = ["agyloop.cli", "agyloop.application", "agyloop.domain"]
+forbidden_modules = ["agyloop.infrastructure"]
+
+[[tool.importlinter.contracts]]
+name = "No Anthropic or Claude agent SDK imports"
+type = "forbidden"
+source_modules = ["agyloop"]
+forbidden_modules = ["anthropic", "claude_agent_sdk"]
