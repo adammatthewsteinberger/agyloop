@@ -6,6 +6,8 @@ import os
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
+
 from agyloop.infrastructure.rundir import (
     RunDirectory,
     list_run_directories,
@@ -74,3 +76,29 @@ def test_resolve_run_directory_prefers_explicit_id(tmp_path: Path) -> None:
     assert resolved.root == first.root
     latest = resolve_run_directory(tmp_path)
     assert latest.root == second.root
+
+
+def test_resolve_run_directory_skips_newer_finished_run(tmp_path: Path) -> None:
+    active = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    finished = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    finished.update_meta(status="finished")
+
+    assert resolve_run_directory(tmp_path).root == active.root
+
+
+def test_resolve_run_directory_refuses_explicit_finished_run(tmp_path: Path) -> None:
+    finished = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    finished.update_meta(status="finished")
+
+    with pytest.raises(FileNotFoundError, match="not active"):
+        resolve_run_directory(tmp_path, run_id=finished.read_meta().run_id)
+
+
+def test_resolve_run_directory_refuses_run_with_dead_pid(tmp_path: Path) -> None:
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+
+    with (
+        patch("agyloop.infrastructure.rundir.os.kill", side_effect=ProcessLookupError),
+        pytest.raises(FileNotFoundError, match="not active"),
+    ):
+        resolve_run_directory(tmp_path, run_id=directory.read_meta().run_id)

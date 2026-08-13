@@ -127,6 +127,18 @@ class RunDirectory:
             return Path(meta.plan_path).read_text(encoding="utf-8")
         return None
 
+    def is_active(self) -> bool:
+        meta = self.read_meta()
+        if meta.status not in {"active", "waiting"}:
+            return False
+        try:
+            os.kill(meta.pid, 0)
+        except ProcessLookupError:
+            return False
+        except PermissionError:
+            return True
+        return True
+
 
 def runs_root_for(cwd: Path) -> Path:
     return cwd / ".agyloop" / "runs"
@@ -148,10 +160,16 @@ def list_run_directories(cwd: Path) -> list[RunDirectory]:
 
 
 def resolve_run_directory(cwd: Path, run_id: str | None = None) -> RunDirectory:
-    """Resolve an explicit run id, else the most recent run in the registry."""
+    """Resolve an active explicit run, else the most recent active run."""
     if run_id is not None:
-        return RunDirectory.open_existing(runs_root_for(cwd) / run_id)
+        directory = RunDirectory.open_existing(runs_root_for(cwd) / run_id)
+        if directory.is_active():
+            return directory
+        raise FileNotFoundError(f"agyloop run {run_id} is not active")
     candidates = list_run_directories(cwd)
+    for directory in reversed(candidates):
+        if directory.is_active():
+            return directory
     if candidates:
-        return candidates[-1]
+        raise FileNotFoundError("no active agyloop runs found under .agyloop/runs/")
     raise FileNotFoundError("no agyloop runs found under .agyloop/runs/")

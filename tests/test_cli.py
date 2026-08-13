@@ -7,7 +7,17 @@ import pytest
 from typer.testing import CliRunner, Result
 
 from agyloop import __version__
+from agyloop.application.dto import RunResult
+from agyloop.application.usecases.doctor import AuthResolution
+from agyloop.bootstrap import RunnerContext, build_runner
+from agyloop.cli import asyncio as cli_asyncio
 from agyloop.cli.app import app
+from agyloop.domain.session import SessionRef
+from agyloop.infrastructure.rundir import (
+    RunDirectory,
+    list_run_directories,
+    runs_root_for,
+)
 
 runner = CliRunner()
 
@@ -138,8 +148,6 @@ def test_cli_package_does_not_import_infrastructure() -> None:
 
 
 def test_async_bridge_is_asyncio_run() -> None:
-    from agyloop.cli import asyncio as cli_asyncio
-
     assert hasattr(cli_asyncio, "async_command")
     source = (Path(__file__).parents[1] / "src" / "agyloop" / "cli" / "asyncio.py").read_text()
     calls = [
@@ -151,8 +159,6 @@ def test_async_bridge_is_asyncio_run() -> None:
 
 
 def test_doctor_cli_reports_resolved_lane(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    from agyloop.application.usecases.doctor import AuthResolution
-
     class _FakeEnv:
         def resolve_auth(self) -> AuthResolution:
             return AuthResolution(
@@ -187,8 +193,6 @@ def test_doctor_cli_reports_resolved_lane(monkeypatch: pytest.MonkeyPatch, tmp_p
 
 
 def test_sessions_cli_lists_registry_only(tmp_path: Path) -> None:
-    from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
-
     directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
     directory.update_meta(conversation_id="conv-listed")
     result = _invoke("sessions", "--cwd", str(tmp_path))
@@ -199,8 +203,6 @@ def test_sessions_cli_lists_registry_only(tmp_path: Path) -> None:
 
 
 def test_run_cli_uses_bootstrap_runner(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from agyloop.application.dto import RunResult
-
     plan = tmp_path / "plan.md"
     plan.write_text("- [ ] do the thing\n", encoding="utf-8")
     seen: dict[str, object] = {}
@@ -238,10 +240,6 @@ def test_run_cli_uses_bootstrap_runner(tmp_path: Path, monkeypatch: pytest.Monke
 def test_resume_last_seeds_from_plan_md_not_truncated_preview(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from agyloop.application.dto import RunResult
-    from agyloop.bootstrap import RunnerContext, build_runner
-    from agyloop.infrastructure.rundir import RunDirectory, list_run_directories, runs_root_for
-
     first = "Keep this heading " + ("x" * 250)
     plan = tmp_path / "source-plan.md"
     plan.write_text(f"{first}\n- [ ] second line must survive degrade seed\n", encoding="utf-8")
@@ -290,10 +288,6 @@ def test_resume_last_seeds_from_plan_md_not_truncated_preview(
 def test_resume_last_survives_preflight_persist_of_null_session_id(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from agyloop.application.dto import RunResult
-    from agyloop.bootstrap import RunnerContext, build_runner
-    from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
-
     directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
     directory.update_meta(conversation_id="conv-keep")
     directory.update_meta(session_id=None, phase="WAITING", status="waiting")
@@ -334,8 +328,6 @@ def test_resume_last_survives_preflight_persist_of_null_session_id(
 def test_resume_without_registry_fails_cleanly(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from agyloop.domain.session import SessionRef
-
     class _EmptyCatalog:
         def most_recent(self, cwd: str) -> SessionRef | None:
             del cwd
@@ -355,8 +347,6 @@ def test_resume_without_registry_fails_cleanly(
 
 
 def test_stop_enqueues_for_latest_run(tmp_path: Path) -> None:
-    from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
-
     directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
     result = _invoke("stop", "--cwd", str(tmp_path))
     assert result.exit_code == 0
@@ -368,8 +358,6 @@ def test_stop_enqueues_for_latest_run(tmp_path: Path) -> None:
 
 
 def test_prompt_now_enqueues_for_latest_run(tmp_path: Path) -> None:
-    from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
-
     directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
     result = _invoke("prompt", "keep going", "--now", "--cwd", str(tmp_path))
     assert result.exit_code == 0
@@ -391,3 +379,40 @@ def test_stop_without_runs_fails_cleanly(tmp_path: Path) -> None:
     result = _invoke("stop", "--cwd", str(tmp_path))
     assert result.exit_code == 1
     assert "no agyloop runs" in _plain(result.output).lower()
+
+
+@pytest.mark.parametrize(
+    ("args", "success_text"),
+    [
+        (("stop",), "stop requested"),
+        (("prompt", "keep going", "--now"), "enqueued"),
+    ],
+)
+def test_control_command_refuses_completed_run(
+    tmp_path: Path,
+    args: tuple[str, ...],
+    success_text: str,
+) -> None:
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    directory.update_meta(status="finished")
+
+    result = _invoke(*args, "--cwd", str(tmp_path))
+
+    output = _plain(result.output).lower()
+    assert result.exit_code == 1
+    assert "active" in output
+    assert success_text not in output
+    assert list(directory.inbox.glob("*.cmd.json")) == []
+
+
+def test_stop_prefers_newest_active_run(tmp_path: Path) -> None:
+    active = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    completed = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    completed.update_meta(status="finished")
+
+    result = _invoke("stop", "--cwd", str(tmp_path))
+
+    assert result.exit_code == 0
+    assert active.read_meta().run_id in _plain(result.stdout)
+    assert len(list(active.inbox.glob("*.cmd.json"))) == 1
+    assert list(completed.inbox.glob("*.cmd.json")) == []
