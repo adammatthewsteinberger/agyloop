@@ -141,12 +141,15 @@ def build_autonomy_policies(
 ) -> list[Policy | list[Policy]]:
     """Compile the agyloop permission mode into an SDK policy list.
 
-    ``yolo`` drops workspace and destructive scopes. ``--yolo`` is a later CLI
-    flag; the gateway already understands the mode so the adapter is ready.
+    ``autonomous`` includes ``allow_all()`` plus workspace/destructive scopes.
+    ``scoped`` / ``safe`` keep workspace + destructive denies without
+    ``allow_all``. ``yolo`` is ``allow_all`` only.
     """
-    policies: list[Policy | list[Policy]] = [allow_all()]
     if permission_mode == "yolo":
-        return policies
+        return [allow_all()]
+    policies: list[Policy | list[Policy]] = []
+    if permission_mode == "autonomous":
+        policies.append(allow_all())
     workspaces = [str(Path(cwd).resolve()), *(str(Path(p).resolve()) for p in (add_dirs or ()))]
     policies.append(workspace_only(workspaces))
     policies.extend(destructive_command_denies())

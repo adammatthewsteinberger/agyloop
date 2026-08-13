@@ -57,6 +57,10 @@ def resume(
             help="Agent transport: sdk (default) or cli (live agy subprocess).",
         ),
     ] = "sdk",
+    max_dollars: Annotated[
+        float | None,
+        typer.Option("--max-dollars", help="Labeled USD estimate cap (ADR 0009)."),
+    ] = None,
 ) -> None:
     """Resume an agyloop-managed conversation. Uses LocalAgentConfig(conversation_id=…).
 
@@ -72,6 +76,7 @@ def resume(
         no_probe=no_probe,
         ramp=ramp,
         gateway=gateway,
+        max_dollars=max_dollars,
     )
 
 
@@ -87,6 +92,7 @@ async def _resume(
     no_probe: bool,
     ramp: int,
     gateway: str,
+    max_dollars: float | None,
 ) -> None:
     cwd = cwd_dir.resolve() if cwd_dir is not None else Path.cwd()
     try:
@@ -119,6 +125,7 @@ async def _resume(
         resume=True,
         ramp=ramp,
         gateway=kind,
+        max_dollars=max_dollars,
     )
     typer.echo(f"Run id: {context.run_id}", err=True)
     result = await resume_explicit(context.runner)

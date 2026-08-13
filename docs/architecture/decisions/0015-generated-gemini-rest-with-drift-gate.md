@@ -28,9 +28,11 @@ Ship `agyloop api` generated from the committed Developer discovery baseline:
 - Drift tests: discovered count equals the committed count; every method is
   registered on the Click tree; hiding one method from the registry is
   detectable.
-- `--lane developer` (default) serves that tree. `--lane vertex` is registered
-  as a disjoint family with **zero** committed methods and refuses at invoke
-  time rather than offering Developer commands that would fail against Vertex.
+- `--lane developer` (default) serves that tree. `--lane vertex` serves a
+  disjoint Gemini subset of `aiplatform:v1` (revision `20260801`, **33**
+  methods: generateContent / predict / countTokens / embedContent family).
+  Developer command paths are refused on the Vertex lane and vice versa.
+  Vertex auth is `GOOGLE_ACCESS_TOKEN` (or `CLOUDSDK_AUTH_ACCESS_TOKEN`).
 - Invokes are raw HTTPS + `GOOGLE_API_KEY` (Developer). No `google-genai` SDK
   dependency. No Anthropic imports.
 
@@ -43,4 +45,6 @@ commit.
 - `agyloop api` is present. Help cites this ADR.
 - The surface can rot when Google revises `v1beta`; the drift gate is the
   intended alarm, not a promise of a frozen API.
-- Vertex remains a stub lane until a Vertex discovery revision is committed.
+- Vertex remains a filtered Gemini subset of Vertex AI, not the full 1100+
+  method aiplatform surface. Regen `vertex_baseline.json` from the v1
+  discovery document and keep the filter in the drift tests.

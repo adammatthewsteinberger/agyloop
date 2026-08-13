@@ -15,8 +15,8 @@ PresetName = Literal["low", "medium", "high"]
 EFFORT_LEVELS: tuple[EffortLevel, ...] = ("low", "medium", "high", "xhigh", "max")
 PRESET_NAMES: tuple[PresetName, ...] = ("low", "medium", "high")
 
-DEFAULT_MODEL_LOW = "gemini-2.5-flash"
-DEFAULT_MODEL_MEDIUM = "gemini-2.5-pro"
+DEFAULT_MODEL_LOW = "gemini-2.5-flash-lite"
+DEFAULT_MODEL_MEDIUM = "gemini-2.5-flash"
 DEFAULT_MODEL_HIGH = "gemini-2.5-pro"
 
 PRESET_DEFAULT_EFFORT: dict[PresetName, EffortLevel] = {

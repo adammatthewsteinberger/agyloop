@@ -52,10 +52,27 @@ def test_invoke_posts_json_with_developer_key(
     assert payload["contents"] == []
 
 
-def test_vertex_lane_refuses_until_inventoried() -> None:
-    gateway = GeminiRestGateway(transport=_FakeTransport())
-    with pytest.raises(ValueError, match="not yet inventoried"):
-        gateway.invoke("models.generateContent", lane="vertex")
+def test_vertex_lane_invokes_aiplatform(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GOOGLE_ACCESS_TOKEN", "ya29.test")
+    transport = _FakeTransport()
+    gateway = GeminiRestGateway(transport=transport)
+    result = gateway.invoke(
+        "projects.locations.publishers.models.generateContent",
+        lane="vertex",
+        json_body=json.dumps(
+            {
+                "model": (
+                    "projects/p/locations/us-central1/publishers/google/models/gemini-2.5-flash"
+                ),
+                "contents": [],
+            }
+        ),
+    )
+    assert result["ok"] is True
+    method, url, headers, _body = transport.calls[0]
+    assert method == "POST"
+    assert "aiplatform.googleapis.com" in url
+    assert headers["Authorization"] == "Bearer ya29.test"
 
 
 def test_missing_api_key_is_loud(monkeypatch: pytest.MonkeyPatch) -> None:

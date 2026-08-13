@@ -33,9 +33,11 @@ conflict and does not pick a lane.
 ```bash
 agyloop run plan.md
 agyloop run plan.md --cwd /path/to/repo --model gemini-2.5-pro
+agyloop run plan.md --preset high --max-dollars 5 --add-dir ../shared
 agyloop run plan.md --max-turns 40 --max-wait 86400 --max-tokens 200000
 agyloop run plan.md --no-probe          # wait to quota boundaries only
 agyloop run plan.md --safe              # nondestructive tools
+agyloop run plan.md --scoped            # workspace + destructive denies, no allow_all
 agyloop run plan.md --yolo              # drop workspace/destructive SDK scopes
 agyloop run plan.md --ramp 5            # pace the first 5 turns
 agyloop run plan.md --gateway cli       # live agy subprocess instead of SDK
@@ -63,12 +65,14 @@ conversation seeded with the persisted plan text.
 
 ```bash
 agyloop doctor
+agyloop doctor explain-classify --message "spend-based rate limit" --http-status 429
 ```
 
 Checks: auth lane and source, no interactive hooks, optional `agy` CLI on
 `PATH`, no MCP servers (OAuth cannot complete unattended), git working
-directory. It does not read live quota — use AI Studio / Cloud Console for
-that.
+directory. A GOOGLE_API_KEY + Vertex flag conflict fails the auth check.
+It does not read live quota — use AI Studio / Cloud Console for that.
+`explain-classify` prints which classifier ladder rung fired.
 
 ## Mid-run control
 
@@ -79,6 +83,14 @@ Same cwd, second terminal. Commands target the newest **active** run
 agyloop prompt --now "Also handle the timeout path"
 agyloop prompt --at-break "Then run the tests"
 agyloop stop
+agyloop status
+agyloop logs --follow
+agyloop watch --stream
+agyloop runs
+agyloop model high
+agyloop preset medium
+agyloop attach ./notes.md
+agyloop unattach notes.md
 ```
 
 These write `.agyloop/runs/<id>/inbox/*.cmd.json`. They never block waiting
@@ -103,7 +115,8 @@ agyloop api --help
 agyloop api models generate-content --json '{"model":"models/gemini-2.5-pro"}'
 ```
 
-Requires `GOOGLE_API_KEY`. `--lane vertex` is registered but not inventoried.
+Requires `GOOGLE_API_KEY` for `--lane developer`. `--lane vertex` uses the
+committed Gemini subset of Vertex AI and `GOOGLE_ACCESS_TOKEN`.
 
 ## Capacity
 
@@ -138,6 +151,7 @@ together with `--sandbox`.
 ```bash
 pytest                 # unit/application; excludes system and live
 pytest -m system       # scripted agent, real filesystem/git/control inbox
+pytest -m live         # optional; skips unless GOOGLE_API_KEY is set; does not force a 429
 ```
 
 System tests do not need a live Google account.

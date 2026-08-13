@@ -81,6 +81,7 @@ from agyloop.domain.permission import (
     parse_user_permission_mode,
 )
 from agyloop.domain.plan import WorkPlan
+from agyloop.domain.pricing import estimate_dollars
 from agyloop.domain.slash import parse_slash, slash_to_prompt
 from agyloop.domain.snapshot import SnapshotReason
 from agyloop.domain.stop_summary import StopSummaryInput, render_stop_summary
@@ -567,13 +568,15 @@ class AutonomousRunner:
                         ),
                     )
 
+                    tokens, dollars = self._turn_spend(outcome)
                     state, decision = decide_after_turn(
                         state,
                         capacity=capacity,
                         verdict=verdict,
                         now=self._clock.now(),
                         config=self._wait_policy,
-                        dollars=outcome.cost_usd,
+                        tokens=tokens,
+                        dollars=dollars,
                     )
                     if (
                         isinstance(decision, SendTurn)
@@ -819,6 +822,17 @@ class AutonomousRunner:
             with contextlib.suppress(Exception):  # pragma: no cover - best-effort cleanup
                 await self._gateway.close()
             raise
+
+    def _turn_spend(self, outcome: TurnOutcome) -> tuple[int, float]:
+        tokens = max(0, outcome.prompt_tokens) + max(0, outcome.completion_tokens)
+        dollars = outcome.cost_usd
+        if dollars <= 0:
+            dollars = estimate_dollars(
+                model=self._profile.model,
+                input_tokens=outcome.prompt_tokens,
+                output_tokens=outcome.completion_tokens,
+            ).usd
+        return tokens, dollars
 
     def _next_prompt(self, *, initial_prompt: str, continue_prompt: str, first_turn: bool) -> str:
         if self._prompt_now is not None:

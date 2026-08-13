@@ -113,6 +113,7 @@ def test_conflicting_api_key_and_vertex_does_not_guess_lane(
     )
     auth = env.resolve_auth()
     assert auth.lane == "unresolved"
+    assert auth.authenticated is False
     assert "conflict" in auth.source or "conflict" in auth.detail.lower()
 
 

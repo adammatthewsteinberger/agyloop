@@ -71,6 +71,27 @@ def run(
             help="Agent transport: sdk (default, google-antigravity) or cli (live agy subprocess).",
         ),
     ] = "sdk",
+    add_dir: Annotated[
+        list[Path] | None,
+        typer.Option("--add-dir", help="Extra workspace directory (repeatable)."),
+    ] = None,
+    max_dollars: Annotated[
+        float | None,
+        typer.Option(
+            "--max-dollars",
+            help="Stop when labeled USD estimate reaches this cap (ADR 0009).",
+        ),
+    ] = None,
+    preset: Annotated[
+        str | None,
+        typer.Option("--preset", help="low | medium | high (sets model + effort)."),
+    ] = None,
+    effort: Annotated[
+        str | None, typer.Option("--effort", help="low|medium|high|xhigh|max.")
+    ] = None,
+    scoped: Annotated[
+        bool, typer.Option("--scoped", help="Workspace + destructive denies without allow_all.")
+    ] = False,
 ) -> None:
     """Seed a brand-new Antigravity session from PLAN_FILE and run it unattended."""
     _run(
@@ -87,6 +108,11 @@ def run(
         unsafe_skip_permissions=unsafe_skip_permissions,
         ramp=ramp,
         gateway=gateway,
+        add_dir=add_dir,
+        max_dollars=max_dollars,
+        preset=preset,
+        effort=effort,
+        scoped=scoped,
     )
 
 
@@ -106,6 +132,11 @@ async def _run(
     unsafe_skip_permissions: bool,
     ramp: int,
     gateway: str,
+    add_dir: list[Path] | None,
+    max_dollars: float | None,
+    preset: str | None,
+    effort: str | None,
+    scoped: bool,
 ) -> None:
     cwd = cwd_dir.resolve() if cwd_dir is not None else Path.cwd()
     try:
@@ -128,7 +159,9 @@ async def _run(
         typer.echo(f"Invalid plan file: {exc}", err=True)
         raise typer.Exit(code=1) from exc
 
-    permission_mode = "yolo" if yolo else ("safe" if safe else "autonomous")
+    permission_mode = (
+        "yolo" if yolo else ("safe" if safe else ("scoped" if scoped else "autonomous"))
+    )
     context = bootstrap.build_runner(
         cwd=cwd,
         plan=plan,
@@ -143,6 +176,10 @@ async def _run(
         ramp=ramp,
         gateway=kind,
         unsafe_skip_permissions=unsafe_skip_permissions,
+        add_dirs=[str(path) for path in add_dir] if add_dir else None,
+        max_dollars=max_dollars,
+        preset=preset,
+        effort=effort,
     )
     typer.echo(f"Run id: {context.run_id}", err=True)
     result = await run_from_plan_file(context.runner, plan_file)

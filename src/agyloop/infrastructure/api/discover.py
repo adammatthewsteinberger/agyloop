@@ -11,6 +11,7 @@ ApiLane = Literal["developer", "vertex"]
 
 DISCOVERY_URL = "https://generativelanguage.googleapis.com/$discovery/rest?version=v1beta"
 OPENAPI_URL = "https://generativelanguage.googleapis.com/$discovery/OPENAPI3_0?version=v1beta"
+VERTEX_DISCOVERY_URL = "https://aiplatform.googleapis.com/$discovery/rest?version=v1"
 
 
 @dataclass(frozen=True, slots=True)

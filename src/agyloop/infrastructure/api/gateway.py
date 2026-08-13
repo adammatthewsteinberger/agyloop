@@ -97,12 +97,11 @@ class GeminiRestGateway:
         method: DiscoveredMethod | None = None,
     ) -> Any:
         parsed_lane = parse_api_lane(lane)
-        if parsed_lane == "vertex":
-            raise ValueError(
-                "Vertex lane surface is not yet inventoried (0 committed methods). "
-                "Use --lane developer."
-            )
         resolved = method or _method_for(method_path, parsed_lane)
+        if resolved.lane != parsed_lane:
+            raise ValueError(
+                f"{method_path} belongs to lane {resolved.lane!r}, not {parsed_lane!r}"
+            )
         payload = _load_json_payload(json_body=json_body, json_file=json_file)
         for key, value in (scalar_values or {}).items():
             if value is not None:
@@ -147,12 +146,26 @@ def _url_for(lane: ApiLane, path: str) -> str:
 
 def _authenticate(lane: ApiLane, url: str, headers: dict[str, str]) -> tuple[str, dict[str, str]]:
     if lane == "vertex":
-        raise ValueError("Vertex lane authentication is not inventoried yet")
+        token = _vertex_access_token()
+        out = dict(headers)
+        out["Authorization"] = f"Bearer {token}"
+        return url, out
     key = os.environ.get("GOOGLE_API_KEY")
     if not key:
         raise ValueError("GOOGLE_API_KEY is required for --lane developer")
     joiner = "&" if "?" in url else "?"
     return f"{url}{joiner}{urlencode({'key': key})}", headers
+
+
+def _vertex_access_token() -> str:
+    for name in ("GOOGLE_ACCESS_TOKEN", "CLOUDSDK_AUTH_ACCESS_TOKEN"):
+        token = os.environ.get(name)
+        if token and token.strip():
+            return token.strip()
+    raise ValueError(
+        "Vertex lane needs GOOGLE_ACCESS_TOKEN (or CLOUDSDK_AUTH_ACCESS_TOKEN). "
+        "ADC is not read here; export a short-lived token from `gcloud auth print-access-token`."
+    )
 
 
 def default_gateway() -> GeminiRestGateway:

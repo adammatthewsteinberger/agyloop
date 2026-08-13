@@ -18,20 +18,51 @@ export GOOGLE_GENAI_USE_VERTEXAI=1   # or GOOGLE_GENAI_USE_ENTERPRISE=1
 agyloop doctor
 ```
 
-If `GOOGLE_API_KEY` and a Vertex flag are both set, doctor reports a conflict
-and does not pick a lane.
+If `GOOGLE_API_KEY` and a Vertex flag are both set, doctor reports a conflict,
+fails the auth check, and does not pick a lane.
+
+## `agyloop.toml`
+
+Precedence: CLI flags > `AGYLOOP_*` environment variables >
+`./agyloop.toml` > `~/.config/agyloop/config.toml` > built-in defaults.
+
+```toml
+[run]
+max_turns = 40
+max_dollars = 5.0          # labeled estimate (ADR 0009)
+gateway = "sdk"
+ramp = 0
+
+[model]
+low = "gemini-2.5-flash-lite"
+medium = "gemini-2.5-flash"
+high = "gemini-2.5-pro"
+```
+
+`agyloop config` prints the effective table. `--preset low|medium|high` selects
+both model and default effort. `--max-dollars` stops the run when the labeled
+USD estimate reaches the cap.
 
 ## Environment
 
 | Variable | Purpose |
 |---|---|
 | `GOOGLE_API_KEY` | Developer API key |
-| `GOOGLE_GENAI_USE_VERTEXAI` / `GOOGLE_GENAI_USE_ENTERPRISE` | Select Vertex lane |
+| `GOOGLE_ACCESS_TOKEN` / `CLOUDSDK_AUTH_ACCESS_TOKEN` | Bearer token for `agyloop api --lane vertex` |
+| `GOOGLE_GENAI_USE_VERTEXAI` / `GOOGLE_GENAI_USE_ENTERPRISE` | Select Vertex lane for doctor / SDK |
 | `GOOGLE_APPLICATION_CREDENTIALS` | ADC JSON path |
+| `AGYLOOP_MAX_TURNS` / `AGYLOOP_MAX_DOLLARS` / `AGYLOOP_MODEL_LOW` … | Override toml keys |
 | `AGYLOOP_UNSAFE_SKIP_ALLOWLIST` | Directories allowed with `--unsafe-skip-permissions` outside git |
 | `AGYLOOP_AGY_SETTINGS` / `AGYLOOP_AGY_SETTINGS_FILE` | Written for `--gateway cli` sandbox settings |
 
-State lives under `.agyloop/` in the working directory.
+State lives under `.agyloop/` in the working directory. `agyloop reset --yes`
+deletes that tree only (refuses while a run PID is live).
+
+## Logging
+
+`--verbose` / `--log-level` / `--log-file` on the root command. File logs are
+JSON lines and pass through redaction. Per-run `events.jsonl` is a separate
+sink under `.agyloop/runs/<id>/`.
 
 ## Gateway and permissions
 

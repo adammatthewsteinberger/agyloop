@@ -33,6 +33,15 @@ def test_preset_high_uses_high_alias() -> None:
     assert profile.preset == "high"
 
 
+def test_default_aliases_are_three_distinct_skus() -> None:
+    from agyloop.domain.model_profile import DEFAULT_MODEL_MEDIUM
+
+    assert len({DEFAULT_MODEL_LOW, DEFAULT_MODEL_MEDIUM, DEFAULT_MODEL_HIGH}) == 3
+    assert DEFAULT_MODEL_LOW == "gemini-2.5-flash-lite"
+    assert DEFAULT_MODEL_MEDIUM == "gemini-2.5-flash"
+    assert DEFAULT_MODEL_HIGH == "gemini-2.5-pro"
+
+
 def test_model_alias_and_effort_override_preset() -> None:
     aliases = ModelAliases(low="g-low", medium="g-med", high="g-high")
     profile = resolve_profile(preset="medium", model="high", effort="xhigh", aliases=aliases)

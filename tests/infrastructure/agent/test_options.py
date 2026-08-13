@@ -38,6 +38,13 @@ def test_local_config_attaches_allow_all() -> None:
     assert any(p.name == "allow_all" for p in cfg.policies)
 
 
+def test_scoped_mode_omits_allow_all() -> None:
+    cfg = build_local_config(cwd=".", permission_mode="scoped")
+    assert not config_has_allow_all(cfg)
+    names = {p.name for p in cfg.policies}
+    assert "workspace_only" in names
+
+
 def test_local_config_never_uses_ask_user_blocking_handler() -> None:
     cfg = build_local_config(cwd=".")
     assert config_has_nonblocking_policies(cfg)

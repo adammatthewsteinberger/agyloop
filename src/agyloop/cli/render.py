@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from agyloop.application.usecases.doctor import DoctorCheck
+from agyloop.domain.classify import Classification
 from agyloop.domain.session import SessionRef
 
 
@@ -13,6 +14,18 @@ def render_doctor_checks(checks: list[DoctorCheck]) -> str:
         lines.append(f"  [{mark}] {check.name}: {check.detail}")
     lines.append("Live quota is not readable from this CLI — check AI Studio / Cloud Console.")
     return "\n".join(lines)
+
+
+def render_classification(result: Classification) -> str:
+    state = result.state
+    extra = ""
+    rate = getattr(state, "rate_limit_type", None)
+    if rate:
+        extra = f" rate_limit_type={rate}"
+    resets = getattr(state, "resets_at", None)
+    if resets is not None:
+        extra += f" resets_at={resets.isoformat()}"
+    return f"rung={result.rung} state={type(state).__name__}{extra}"
 
 
 def render_session_list(sessions: list[SessionRef]) -> str:

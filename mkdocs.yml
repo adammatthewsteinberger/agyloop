@@ -74,6 +74,17 @@ nav:
       - The generated REST surface: guides/rest-api-surface.md
   - Architecture:
       - Decision records:
+          - "0001 — Onion architecture": architecture/decisions/0001-onion-architecture.md
+          - "0002 — SDK primary gateway": architecture/decisions/0002-sdk-primary-gateway.md
+          - "0003 — Five-member CapacityState": architecture/decisions/0003-five-member-capacity-state.md
+          - "0004 — Quota-aware probes": architecture/decisions/0004-quota-aware-probes.md
+          - "0005 — Bounded in-process retry": architecture/decisions/0005-bounded-in-process-retry.md
           - "0006 — Defer Gemini REST (superseded)": architecture/decisions/0006-defer-genai-rest.md
+          - "0007 — Deny ask_question with guidance": architecture/decisions/0007-deny-ask-question-with-guidance.md
+          - "0008 — Never skip-permissions with sandbox": architecture/decisions/0008-never-skip-permissions-with-sandbox.md
+          - "0009 — Token budgets; labeled dollar estimates": architecture/decisions/0009-budgets-are-token-denominated.md
+          - "0010 — Persist conversation_id with fsync": architecture/decisions/0010-conversation-id-fsync.md
+          - "0011 — Doctor never guesses the auth lane": architecture/decisions/0011-doctor-never-guesses-auth-lane.md
+          - "0012 — Versioned classifier fixtures": architecture/decisions/0012-classifier-patterns-are-versioned.md
           - "0015 — Generated REST with drift gate": architecture/decisions/0015-generated-gemini-rest-with-drift-gate.md
   - Security: security.md

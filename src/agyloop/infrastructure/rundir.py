@@ -65,6 +65,9 @@ class RunDirectory:
         self.lock_path = root / "run.lock"
         self.snapshots_root = root / "snapshots"
         self.savepoints_path = root / "savepoints.jsonl"
+        self.resources_root = root / "resources"
+        self.status_path = root / "status.json"
+        self.bus_path = root / "bus.jsonl"
 
     @classmethod
     def create(cls, runs_root: Path, *, cwd: Path, plan_path: Path | None = None) -> RunDirectory:
@@ -133,13 +136,17 @@ class RunDirectory:
         meta = self.read_meta()
         if meta.status not in {"active", "waiting"}:
             return False
-        try:
-            os.kill(meta.pid, 0)
-        except ProcessLookupError:
-            return False
-        except PermissionError:
-            return True
+        return pid_alive(meta.pid)
+
+
+def pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
         return True
+    return True
 
 
 def runs_root_for(cwd: Path) -> Path:

@@ -22,6 +22,8 @@ class TurnOutcome:
     output_text: str
     session_id: str | None
     cost_usd: float = 0.0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
     raw_events: tuple[dict[str, object], ...] = ()
 
 

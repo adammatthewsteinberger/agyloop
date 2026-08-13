@@ -1,8 +1,8 @@
 """Build ``LocalAgentConfig`` for unattended Antigravity SDK sessions.
 
 Additive ``system_instructions`` only — never ``CustomSystemInstructions``
-(F5.2). Policies always include ``allow_all()`` plus workspace/destructive
-scopes unless the permission mode is ``yolo``.
+(F5.2). ``autonomous`` includes ``allow_all()`` plus workspace/destructive
+scopes; ``scoped`` / ``safe`` omit ``allow_all``; ``yolo`` is unrestricted.
 """
 
 from __future__ import annotations

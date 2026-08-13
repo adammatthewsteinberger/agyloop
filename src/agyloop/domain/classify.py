@@ -146,7 +146,23 @@ def _window(kind: str, now: datetime, quota_id: str | None = None) -> WindowExha
     return WindowExhausted(rate_limit_type=kind, resets_at=resets_at, quota_id=quota_id)
 
 
+@dataclass(frozen=True, slots=True)
+class Classification:
+    """Capacity state plus the ladder rung that produced it.
+
+    ``rung`` is a stable identifier for ``doctor explain-classify`` and golden
+    fixtures — not a user-facing sentence.
+    """
+
+    state: CapacityState
+    rung: str
+
+
 def classify(signals: TurnSignals, now: datetime | None = None) -> CapacityState:
+    return classify_explained(signals, now=now).state
+
+
+def classify_explained(signals: TurnSignals, now: datetime | None = None) -> Classification:
     instant = now if now is not None else _current_time()
     status = _status(signals)
     message = _message(signals)
@@ -154,15 +170,21 @@ def classify(signals: TurnSignals, now: datetime | None = None) -> CapacityState
 
     # Operator/programmatic cancel is not a capacity signal (F7).
     if signals.exception_type and "cancelled" in signals.exception_type.casefold():
-        return Available()
+        return Classification(Available(), "operator_cancel")
 
     # 1. Auth first. Terminal. Never retried.
     if http_status in {401, 403} or status in _AUTH_STATUSES:
-        return AuthenticationFailed(detail=message, reason=status or str(http_status or ""))
+        return Classification(
+            AuthenticationFailed(detail=message, reason=status or str(http_status or "")),
+            "authentication",
+        )
 
     # 7-before-5: 503 / UNAVAILABLE is never CreditsExhausted (F9.3).
     if http_status == 503 or status == "UNAVAILABLE":
-        return TransientThrottle(retry_after=signals.retry_info_delay)
+        return Classification(
+            TransientThrottle(retry_after=signals.retry_info_delay),
+            "unavailable",
+        )
 
     spend = looks_like_spend_limit(message)
 
@@ -176,39 +198,51 @@ def classify(signals: TurnSignals, now: datetime | None = None) -> CapacityState
         or signals.retry_info_delay is not None
     )
     if not rejected:
-        return Available()
+        return Classification(Available(), "available")
 
     # 5. Billing / spend markers. Brief: spend-based language is CreditsExhausted,
     # not a 10-minute WindowExhausted. Checked before window construction so a
     # billing marker can never produce a state carrying resets_at.
     if spend:
         purchase = True if signals.can_purchase is None else signals.can_purchase
-        return CreditsExhausted(detail=message, can_purchase=purchase)
+        return Classification(
+            CreditsExhausted(detail=message, can_purchase=purchase),
+            "spend",
+        )
 
     # quota_metric is a structured field (brief) — treat like quotaId.
     metric_kind = _window_kind_from_token(signals.quota_metric)
     if metric_kind is not None:
-        return _window(metric_kind, instant, quota_id=signals.quota_metric)
+        return Classification(
+            _window(metric_kind, instant, quota_id=signals.quota_metric),
+            "quota_metric",
+        )
 
     # 2. Structured error_code.
     if signals.error_code == "quota_exceeded":
-        return _window("rpd", instant)
+        return Classification(_window("rpd", instant), "error_code_quota_exceeded")
     if signals.error_code == "rate_limit_exceeded":
-        return TransientThrottle(retry_after=signals.retry_info_delay, quota_id=signals.error_code)
+        return Classification(
+            TransientThrottle(retry_after=signals.retry_info_delay, quota_id=signals.error_code),
+            "error_code_rate_limit_exceeded",
+        )
 
     # 3. QuotaFailure.violations[].quotaId.
     violation_kind = _window_kind_from_violations(signals.quota_violations)
     if violation_kind is not None:
-        return _window(violation_kind, instant)
+        return Classification(_window(violation_kind, instant), "quota_violations")
 
     # 4. RetryInfo.retryDelay presence is evidence of transience.
     if signals.retry_info_delay is not None:
-        return TransientThrottle(retry_after=signals.retry_info_delay)
+        return Classification(
+            TransientThrottle(retry_after=signals.retry_info_delay),
+            "retry_info",
+        )
 
     # 6. Daily / per-minute markers in the message.
     message_kind = _window_kind_from_message(message)
     if message_kind is not None:
-        return _window(message_kind, instant)
+        return Classification(_window(message_kind, instant), "message_window")
 
     # 8. Ambiguous 429 RESOURCE_EXHAUSTED → unknown window, never Available.
-    return WindowExhausted(rate_limit_type="unknown")
+    return Classification(WindowExhausted(rate_limit_type="unknown"), "unknown_window")

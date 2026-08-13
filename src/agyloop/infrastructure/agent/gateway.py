@@ -38,6 +38,25 @@ from agyloop.infrastructure.agent.translate import (
 EventListener = Callable[[dict[str, object]], None]
 
 
+def _usage_tokens(response: object, kind: str) -> int:
+    usage = getattr(response, "usage_metadata", None) or getattr(response, "usage", None)
+    if usage is None:
+        return 0
+    names = {
+        "prompt": ("prompt_token_count", "prompt_tokens", "input_tokens"),
+        "completion": ("candidates_token_count", "completion_tokens", "output_tokens"),
+    }
+    for attr in names[kind]:
+        value = getattr(usage, attr, None)
+        if isinstance(value, int) and value >= 0:
+            return value
+        if isinstance(usage, dict):
+            raw = usage.get(attr)
+            if isinstance(raw, int) and raw >= 0:
+                return raw
+    return 0
+
+
 class AntigravityAgentGateway:
     """One live Antigravity Agent session. Connect lazily on first send_turn()."""
 
@@ -140,12 +159,23 @@ class AntigravityAgentGateway:
             session_id = agent.conversation_id
             if isinstance(session_id, str) and session_id:
                 self._conversation_id = session_id
-            return TurnOutcome(
+            outcome = TurnOutcome(
                 signals=TurnSignals(),
                 verdict=verdict_from_structured(structured),
                 output_text=output_text,
                 session_id=session_id if isinstance(session_id, str) else None,
+                prompt_tokens=_usage_tokens(response, "prompt"),
+                completion_tokens=_usage_tokens(response, "completion"),
             )
+            if self._on_event is not None:
+                self._on_event(
+                    {
+                        "event": "turn_complete",
+                        "session_id": outcome.session_id or "",
+                        "text_len": len(output_text),
+                    }
+                )
+            return outcome
         except (
             AntigravityValidationError,
             AntigravityCancelledError,

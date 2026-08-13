@@ -8,7 +8,12 @@ from typing import Annotated, Any
 
 import typer
 
-from agyloop.infrastructure.api.discover import DiscoveredMethod, discover_surface, parse_api_lane
+from agyloop.infrastructure.api.discover import (
+    ApiLane,
+    DiscoveredMethod,
+    discover_surface,
+    parse_api_lane,
+)
 from agyloop.infrastructure.api.gateway import GeminiRestGateway, default_gateway
 from agyloop.infrastructure.api.registry import clear_registry, register_command_path
 
@@ -27,8 +32,11 @@ def _attach_method(
     gateway: GeminiRestGateway,
 ) -> None:
     method_path = method.path
+    method_lane = method.lane
     cmd_name = kebab(method.path.rsplit(".", 1)[-1])
-    help_text = f"REST `{method.path}` ({method.http_method} {method.http_path})."
+    help_text = (
+        f"REST `{method.path}` ({method.http_method} {method.http_path}, lane={method.lane})."
+    )
 
     def command(
         ctx: typer.Context,
@@ -43,6 +51,12 @@ def _attach_method(
         root = ctx.find_root()
         obj = root.obj if isinstance(root.obj, dict) else {}
         lane = str(obj.get("lane", "developer"))
+        if lane != method_lane:
+            typer.echo(
+                f"{method_path} belongs to --lane {method_lane}, not {lane}.",
+                err=True,
+            )
+            raise typer.Exit(code=1)
         try:
             text = gateway.invoke_and_print(
                 method_path,
@@ -60,46 +74,14 @@ def _attach_method(
     group.command(name=cmd_name, help=help_text)(command)
 
 
-def build_api_app(*, gateway: GeminiRestGateway | None = None) -> typer.Typer:
-    """Build the nested Typer app mounted at ``agyloop api``."""
-    clear_registry()
-    gw = gateway or default_gateway()
-    api = typer.Typer(
-        name="api",
-        help="Generated 1:1 Gemini REST surface (Developer discovery document).",
-        add_completion=False,
-        no_args_is_help=True,
-    )
-
-    @api.callback()
-    def api_root(
-        ctx: typer.Context,
-        lane: Annotated[
-            str,
-            typer.Option(
-                "--lane",
-                help="API family. Vertex is registered but not yet inventoried.",
-            ),
-        ] = "developer",
-    ) -> None:
-        try:
-            parsed = parse_api_lane(lane)
-        except ValueError as exc:
-            typer.echo(str(exc), err=True)
-            raise typer.Exit(code=1) from exc
-        if parsed == "vertex":
-            typer.echo(
-                "Vertex lane surface is not yet inventoried (0 committed methods). "
-                "Use --lane developer.",
-                err=True,
-            )
-            raise typer.Exit(code=1)
-        ctx.ensure_object(dict)
-        ctx.obj["lane"] = parsed
-        ctx.obj["gateway"] = gw
-
-    groups: dict[tuple[str, ...], typer.Typer] = {(): api}
-    for method in discover_surface(lane="developer"):
+def _bind_lane(
+    api: typer.Typer,
+    *,
+    lane: ApiLane,
+    gateway: GeminiRestGateway,
+    groups: dict[tuple[str, ...], typer.Typer],
+) -> None:
+    for method in discover_surface(lane=lane):
         parts = method.path.split(".")
         parent = api
         key: tuple[str, ...] = ()
@@ -114,8 +96,47 @@ def build_api_app(*, gateway: GeminiRestGateway | None = None) -> typer.Typer:
                 parent.add_typer(child, name=kebab(segment))
                 groups[key] = child
             parent = groups[key]
-        _attach_method(parent, method, gw)
-        register_command_path(method.path)
+        _attach_method(parent, method, gateway)
+        register_command_path(method.path, lane=lane)
+
+
+def build_api_app(*, gateway: GeminiRestGateway | None = None) -> typer.Typer:
+    """Build the nested Typer app mounted at ``agyloop api``."""
+    clear_registry()
+    gw = gateway or default_gateway()
+    api = typer.Typer(
+        name="api",
+        help=(
+            "Generated 1:1 Gemini REST surface. Developer discovery by default; "
+            "pass --lane vertex for the disjoint Vertex Gemini subset (ADR 0015)."
+        ),
+        add_completion=False,
+        no_args_is_help=True,
+    )
+
+    @api.callback()
+    def api_root(
+        ctx: typer.Context,
+        lane: Annotated[
+            str,
+            typer.Option(
+                "--lane",
+                help="API family: developer (GOOGLE_API_KEY) or vertex (ADC / access token).",
+            ),
+        ] = "developer",
+    ) -> None:
+        try:
+            parsed = parse_api_lane(lane)
+        except ValueError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
+        ctx.ensure_object(dict)
+        ctx.obj["lane"] = parsed
+        ctx.obj["gateway"] = gw
+
+    groups: dict[tuple[str, ...], typer.Typer] = {(): api}
+    _bind_lane(api, lane="developer", gateway=gw, groups=groups)
+    _bind_lane(api, lane="vertex", gateway=gw, groups=groups)
     return api
 
 

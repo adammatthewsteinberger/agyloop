@@ -44,7 +44,7 @@ class RealDoctorEnvironment:
             return AuthResolution(
                 lane="unresolved",
                 source="conflict",
-                authenticated=True,
+                authenticated=False,
                 detail=(
                     "GOOGLE_API_KEY and Vertex/Enterprise env are both set; "
                     "doctor will not guess the effective lane"
