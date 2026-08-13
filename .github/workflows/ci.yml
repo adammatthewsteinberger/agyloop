@@ -81,6 +81,7 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
       - run: pytest
+      - run: pytest -m system
 
   build:
     name: Package builds and is installable

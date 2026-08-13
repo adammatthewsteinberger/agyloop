@@ -32,3 +32,12 @@ class AgentConfigError(AgyloopError):
     Wraps vendor ``AntigravityValidationError`` so the port never leaks
     ``google.antigravity`` types.
     """
+
+
+class UnsafeSkipPermissionsError(AgyloopError):
+    """Raised when ``--unsafe-skip-permissions`` is refused.
+
+    The opt-in maps to ``agy --dangerously-skip-permissions``, which must
+    never combine with ``--sandbox`` (antigravity-cli#36), never run as
+    root, and never run outside a git repo unless allowlisted.
+    """

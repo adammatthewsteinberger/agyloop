@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner, Result
@@ -113,6 +114,7 @@ def test_run_help_renders() -> None:
     assert "--model" in stdout
     assert "--max-turns" in stdout
     assert "--max-wait" in stdout
+    assert "--unsafe-skip-permissions" in stdout
 
 
 def test_resume_help_renders() -> None:
@@ -416,3 +418,28 @@ def test_stop_prefers_newest_active_run(tmp_path: Path) -> None:
     assert active.read_meta().run_id in _plain(result.stdout)
     assert len(list(active.inbox.glob("*.cmd.json"))) == 1
     assert list(completed.inbox.glob("*.cmd.json")) == []
+
+
+def test_run_unsafe_skip_permissions_refuses_root(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".git").mkdir()
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [ ] do the thing\n", encoding="utf-8")
+
+    def _must_not_build(**kwargs: object) -> None:
+        del kwargs
+        raise AssertionError("build_runner must not run after a root refuse")
+
+    monkeypatch.setattr("agyloop.bootstrap.build_runner", _must_not_build)
+    with patch("agyloop.infrastructure.agent.cli_argv.os.geteuid", return_value=0):
+        result = _invoke(
+            "run",
+            str(plan),
+            "--cwd",
+            str(tmp_path),
+            "--unsafe-skip-permissions",
+        )
+    combined = _plain(result.stdout + result.stderr + result.output).lower()
+    assert result.exit_code != 0
+    assert "root" in combined

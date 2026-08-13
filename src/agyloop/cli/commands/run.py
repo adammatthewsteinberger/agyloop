@@ -8,7 +8,7 @@ import typer
 from agyloop import bootstrap
 from agyloop.application.usecases.run_plan import parse_plan_file, run_from_plan_file
 from agyloop.cli.asyncio import async_command
-from agyloop.domain.errors import InvalidPlanError
+from agyloop.domain.errors import InvalidPlanError, UnsafeSkipPermissionsError
 
 
 def run(
@@ -45,6 +45,17 @@ def run(
     yolo: Annotated[
         bool, typer.Option("--yolo", help="Drop workspace/destructive scopes.")
     ] = False,
+    unsafe_skip_permissions: Annotated[
+        bool,
+        typer.Option(
+            "--unsafe-skip-permissions",
+            help=(
+                "CLI-adapter opt-in for agy --dangerously-skip-permissions. "
+                "Refuses root, refuses --sandbox, refuses a non-git cwd. "
+                "SDK runs use policies, not this flag."
+            ),
+        ),
+    ] = False,
 ) -> None:
     """Seed a brand-new Antigravity session from PLAN_FILE and run it unattended."""
     _run(
@@ -58,6 +69,7 @@ def run(
         strict_autonomy=strict_autonomy,
         safe=safe,
         yolo=yolo,
+        unsafe_skip_permissions=unsafe_skip_permissions,
     )
 
 
@@ -74,8 +86,20 @@ async def _run(
     strict_autonomy: bool,
     safe: bool,
     yolo: bool,
+    unsafe_skip_permissions: bool,
 ) -> None:
     cwd = cwd_dir.resolve() if cwd_dir is not None else Path.cwd()
+    if unsafe_skip_permissions:
+        try:
+            bootstrap.validate_unsafe_skip_permissions(cwd)
+        except UnsafeSkipPermissionsError as exc:
+            typer.echo(str(exc), err=True)
+            raise typer.Exit(code=1) from exc
+        typer.echo(
+            "WARNING: SDK path uses policies, not --dangerously-skip-permissions; "
+            "this opt-in is recorded and gated (antigravity-cli#36).",
+            err=True,
+        )
     try:
         plan = parse_plan_file(plan_file)
     except InvalidPlanError as exc:

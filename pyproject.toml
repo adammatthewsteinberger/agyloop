@@ -84,6 +84,11 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
+addopts = "-m \"not live and not system\""
+markers = [
+    "live: exercises a real Google/Gemini account. Opt in with -m live.",
+    "system: deterministic system harness (real FS/git/CLI adapters + scripted agent). Opt in with -m system.",
+]
 
 [tool.importlinter]
 root_package = "agyloop"

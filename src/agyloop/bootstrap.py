@@ -24,6 +24,9 @@ from agyloop.domain.permission import DEFAULT_USER_PERMISSION_MODE, parse_user_p
 from agyloop.domain.plan import WorkPlan
 from agyloop.domain.waiting import WaitPolicyConfig
 from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
+from agyloop.infrastructure.agent.cli_argv import (
+    validate_unsafe_skip_permissions as _validate_unsafe_skip_permissions,
+)
 from agyloop.infrastructure.agent.gateway import AntigravityAgentGateway
 from agyloop.infrastructure.agent.probe import AntigravityCapacityProbe
 from agyloop.infrastructure.control import FileRunControl
@@ -191,3 +194,8 @@ def enqueue_prompt(
     directory = resolve_run_directory(cwd, run_id)
     inbox = FileRunControl(directory.inbox)
     return request_prompt(inbox, text, immediate=immediate, run_id=directory.read_meta().run_id)
+
+
+def validate_unsafe_skip_permissions(cwd: Path, *, sandbox: bool = False) -> None:
+    """Refuse ``--unsafe-skip-permissions`` under root / sandbox / non-git cwd."""
+    _validate_unsafe_skip_permissions(cwd=cwd, sandbox=sandbox)
