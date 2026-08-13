@@ -16,6 +16,7 @@ from agyloop.application.dto import TurnOutcome
 from agyloop.application.ports import AgentGateway, CapacityProbe
 from agyloop.application.runner import AutonomousRunner
 from agyloop.application.usecases.doctor import DoctorEnvironment
+from agyloop.application.usecases.run_control import EnqueueResult, request_prompt, request_stop
 from agyloop.domain.budget import Budget
 from agyloop.domain.classify import TurnSignals
 from agyloop.domain.model_profile import resolve_profile
@@ -25,9 +26,15 @@ from agyloop.domain.waiting import WaitPolicyConfig
 from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
 from agyloop.infrastructure.agent.gateway import AntigravityAgentGateway
 from agyloop.infrastructure.agent.probe import AntigravityCapacityProbe
+from agyloop.infrastructure.control import FileRunControl
 from agyloop.infrastructure.doctor_env import RealDoctorEnvironment
 from agyloop.infrastructure.notify import StderrNotifier
-from agyloop.infrastructure.rundir import RunDirectory, list_run_directories, runs_root_for
+from agyloop.infrastructure.rundir import (
+    RunDirectory,
+    list_run_directories,
+    resolve_run_directory,
+    runs_root_for,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,6 +156,7 @@ def build_runner(
         permission_mode=parsed_mode,
         notifier=StderrNotifier(),
         no_probe=no_probe,
+        run_control=FileRunControl(run_dir.inbox),
     )
     return RunnerContext(
         runner=runner,
@@ -165,3 +173,21 @@ def build_session_catalog() -> RunRegistryCatalog:
 
 def build_doctor_environment() -> DoctorEnvironment:
     return RealDoctorEnvironment()
+
+
+def enqueue_stop(cwd: Path, run_id: str | None = None) -> EnqueueResult:
+    directory = resolve_run_directory(cwd, run_id)
+    inbox = FileRunControl(directory.inbox)
+    return request_stop(inbox, run_id=directory.read_meta().run_id)
+
+
+def enqueue_prompt(
+    cwd: Path,
+    text: str,
+    *,
+    immediate: bool,
+    run_id: str | None = None,
+) -> EnqueueResult:
+    directory = resolve_run_directory(cwd, run_id)
+    inbox = FileRunControl(directory.inbox)
+    return request_prompt(inbox, text, immediate=immediate, run_id=directory.read_meta().run_id)

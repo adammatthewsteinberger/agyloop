@@ -45,6 +45,54 @@ def test_help_option_succeeds() -> None:
     assert "doctor" in stdout
 
 
+def test_api_command_is_deferred() -> None:
+    """M4 ships no generated Gemini REST CLI; ADR 0006 records the deferral."""
+    help_result = _invoke("--help")
+    assert help_result.exit_code == 0
+    help_text = _plain(help_result.stdout)
+    commands = _listed_commands(help_text)
+    assert "api" not in commands
+    assert "adr 0006" in help_text.lower()
+    assert "deferred" in help_text.lower()
+
+    api_result = _invoke("api")
+    assert api_result.exit_code != 0
+    combined = _plain(api_result.stdout + api_result.stderr)
+    assert "no such command" in combined.lower() or "usage" in combined.lower()
+
+
+def _listed_commands(help_text: str) -> set[str]:
+    """Command names from the Typer Commands section, not incidental help words."""
+    names: set[str] = set()
+    in_commands = False
+    for line in help_text.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("commands"):
+            in_commands = True
+            continue
+        if in_commands:
+            if not stripped:
+                break
+            names.add(stripped.split()[0])
+    return names
+
+
+def test_adr_0006_restates_stability_criterion_and_that_api_does_not_ship() -> None:
+    path = (
+        Path(__file__).parents[1]
+        / "docs"
+        / "architecture"
+        / "decisions"
+        / "0006-defer-genai-rest.md"
+    )
+    text = path.read_text(encoding="utf-8").lower()
+    assert "discovery document" in text
+    assert "preview" in text
+    assert "agyloop api" in text
+    assert "does not ship" in text
+    assert "two consecutive" in text
+
+
 def test_run_help_renders() -> None:
     result = _invoke("run", "--help")
 
@@ -304,3 +352,42 @@ def test_resume_without_registry_fails_cleanly(
         "cannot be enumerated" in _plain(result.output).lower()
         or "no prior" in _plain(result.output).lower()
     )
+
+
+def test_stop_enqueues_for_latest_run(tmp_path: Path) -> None:
+    from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
+
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    result = _invoke("stop", "--cwd", str(tmp_path))
+    assert result.exit_code == 0
+    run_id = directory.read_meta().run_id
+    assert run_id in _plain(result.stdout)
+    inbox_files = list(directory.inbox.glob("*.cmd.json"))
+    assert len(inbox_files) == 1
+    assert "stop" in inbox_files[0].read_text(encoding="utf-8")
+
+
+def test_prompt_now_enqueues_for_latest_run(tmp_path: Path) -> None:
+    from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
+
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    result = _invoke("prompt", "keep going", "--now", "--cwd", str(tmp_path))
+    assert result.exit_code == 0
+    stdout = _plain(result.stdout)
+    assert "prompt_now" in stdout
+    assert directory.read_meta().run_id in stdout
+    inbox_files = list(directory.inbox.glob("*.cmd.json"))
+    assert len(inbox_files) == 1
+    assert "prompt_now" in inbox_files[0].read_text(encoding="utf-8")
+
+
+def test_prompt_requires_now_or_at_break() -> None:
+    result = _invoke("prompt", "hello")
+    assert result.exit_code == 2
+    assert "exactly one" in _plain(result.output).lower()
+
+
+def test_stop_without_runs_fails_cleanly(tmp_path: Path) -> None:
+    result = _invoke("stop", "--cwd", str(tmp_path))
+    assert result.exit_code == 1
+    assert "no agyloop runs" in _plain(result.output).lower()

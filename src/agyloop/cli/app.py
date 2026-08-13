@@ -6,19 +6,26 @@ import typer
 
 from agyloop import __version__
 from agyloop.cli.commands.doctor import app as doctor_app
+from agyloop.cli.commands.prompt import prompt
 from agyloop.cli.commands.resume import resume
 from agyloop.cli.commands.run import run
 from agyloop.cli.commands.sessions import app as sessions_app
+from agyloop.cli.commands.stop import stop
 
 app = typer.Typer(
     name="agyloop",
-    help="Autonomous Google Antigravity and Gemini session runner.",
+    help=(
+        "Autonomous Google Antigravity and Gemini session runner. "
+        "Generated Gemini REST `api` is deferred (ADR 0006)."
+    ),
     add_completion=False,
     no_args_is_help=True,
 )
 
 app.command(name="run")(run)
 app.command(name="resume")(resume)
+app.command(name="stop")(stop)
+app.command(name="prompt")(prompt)
 app.add_typer(sessions_app, name="sessions")
 app.add_typer(doctor_app, name="doctor")
 

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from agyloop.bootstrap import build_runner
+from agyloop.infrastructure.control import FileRunControl
 from agyloop.infrastructure.notify import StderrNotifier
 
 
@@ -11,3 +12,4 @@ def test_build_runner_wires_no_probe_and_stderr_notifier(tmp_path: Path) -> None
     assert context.runner._no_probe is True
     assert context.runner._wait_policy.no_probe is True
     assert isinstance(context.runner._notifier, StderrNotifier)
+    assert isinstance(context.runner._control, FileRunControl)
