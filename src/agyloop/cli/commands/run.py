@@ -50,9 +50,9 @@ def run(
         typer.Option(
             "--unsafe-skip-permissions",
             help=(
-                "CLI-adapter opt-in for agy --dangerously-skip-permissions. "
-                "Refuses root, refuses --sandbox, refuses a non-git cwd. "
-                "SDK runs use policies, not this flag."
+                "Refused on this SDK command. For the CLI adapter argv builder "
+                "(build_agy_argv) only. SDK autonomy uses policies / --yolo, "
+                "never --dangerously-skip-permissions."
             ),
         ),
     ] = False,
@@ -91,15 +91,10 @@ async def _run(
     cwd = cwd_dir.resolve() if cwd_dir is not None else Path.cwd()
     if unsafe_skip_permissions:
         try:
-            bootstrap.validate_unsafe_skip_permissions(cwd)
+            bootstrap.refuse_unsafe_skip_on_sdk_path(cwd)
         except UnsafeSkipPermissionsError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc
-        typer.echo(
-            "WARNING: SDK path uses policies, not --dangerously-skip-permissions; "
-            "this opt-in is recorded and gated (antigravity-cli#36).",
-            err=True,
-        )
     try:
         plan = parse_plan_file(plan_file)
     except InvalidPlanError as exc:

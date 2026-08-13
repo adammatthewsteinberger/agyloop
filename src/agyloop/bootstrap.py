@@ -19,11 +19,13 @@ from agyloop.application.usecases.doctor import DoctorEnvironment
 from agyloop.application.usecases.run_control import EnqueueResult, request_prompt, request_stop
 from agyloop.domain.budget import Budget
 from agyloop.domain.classify import TurnSignals
+from agyloop.domain.errors import UnsafeSkipPermissionsError
 from agyloop.domain.model_profile import resolve_profile
 from agyloop.domain.permission import DEFAULT_USER_PERMISSION_MODE, parse_user_permission_mode
 from agyloop.domain.plan import WorkPlan
 from agyloop.domain.waiting import WaitPolicyConfig
 from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
+from agyloop.infrastructure.agent.cli_argv import UNSAFE_SKIP_WARNING
 from agyloop.infrastructure.agent.cli_argv import (
     validate_unsafe_skip_permissions as _validate_unsafe_skip_permissions,
 )
@@ -199,3 +201,14 @@ def enqueue_prompt(
 def validate_unsafe_skip_permissions(cwd: Path, *, sandbox: bool = False) -> None:
     """Refuse ``--unsafe-skip-permissions`` under root / sandbox / non-git cwd."""
     _validate_unsafe_skip_permissions(cwd=cwd, sandbox=sandbox)
+
+
+def refuse_unsafe_skip_on_sdk_path(cwd: Path) -> None:
+    """Gate then fail closed: SDK ``run`` never honors skip-permissions."""
+    validate_unsafe_skip_permissions(cwd)
+    raise UnsafeSkipPermissionsError(
+        "--unsafe-skip-permissions is for the CLI adapter argv builder "
+        "(build_agy_argv), not the SDK gateway. The SDK path uses policies / "
+        "--yolo for autonomy scope and never emits --dangerously-skip-permissions. "
+        f"{UNSAFE_SKIP_WARNING}"
+    )

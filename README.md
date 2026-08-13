@@ -68,10 +68,11 @@ on stdin. See [SECURITY.md](SECURITY.md).
 Default SDK path: `allow_all()` + workspace scope + destructive-command
 denies. `--safe` limits tools; `--yolo` drops workspace/destructive scopes.
 
-`--unsafe-skip-permissions` is a **CLI-adapter** opt-in for
-`agy --dangerously-skip-permissions`. It refuses root, refuses combining with
-`--sandbox`, and refuses a non-git cwd. agyloop never emits that flag together
-with `--sandbox` ([antigravity-cli#36](https://github.com/google-antigravity/antigravity-cli/issues/36)).
+`--unsafe-skip-permissions` is a **CLI-adapter argv** opt-in for
+`agy --dangerously-skip-permissions` (`build_agy_argv`). `agyloop run` is the
+SDK path and **refuses** the flag. The argv builder refuses root, refuses
+combining with `--sandbox`, and refuses a non-git cwd. agyloop never emits that
+flag together with `--sandbox` ([antigravity-cli#36](https://github.com/google-antigravity/antigravity-cli/issues/36)).
 
 ## Tests
 

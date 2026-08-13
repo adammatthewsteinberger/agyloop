@@ -102,11 +102,11 @@ Default SDK autonomy is scoped. See [SECURITY.md](../SECURITY.md) for the
 `--sandbox` + `--dangerously-skip-permissions` footgun
 ([antigravity-cli#36](https://github.com/google-antigravity/antigravity-cli/issues/36)).
 
-`--unsafe-skip-permissions` is the explicit CLI-adapter opt-in. It refuses
-root, refuses `--sandbox`, and refuses a non-git directory unless
-`AGYLOOP_UNSAFE_SKIP_ALLOWLIST` includes it. The SDK path does not use that
-flag combination; use `--yolo` only when you intend to drop workspace
-scopes.
+`--unsafe-skip-permissions` is the explicit CLI-adapter argv opt-in
+(`build_agy_argv`). `agyloop run` refuses it: the SDK path uses policies /
+`--yolo` and never emits `--dangerously-skip-permissions`. On the argv
+builder it refuses root, refuses `--sandbox`, and refuses a non-git
+directory unless `AGYLOOP_UNSAFE_SKIP_ALLOWLIST` includes it.
 
 ## Tests
 

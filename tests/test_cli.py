@@ -443,3 +443,34 @@ def test_run_unsafe_skip_permissions_refuses_root(
     combined = _plain(result.stdout + result.stderr + result.output).lower()
     assert result.exit_code != 0
     assert "root" in combined
+
+
+def test_run_unsafe_skip_permissions_refuses_sdk_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".git").mkdir()
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [ ] do the thing\n", encoding="utf-8")
+
+    def _must_not_build(**kwargs: object) -> None:
+        del kwargs
+        raise AssertionError("build_runner must not run for SDK unsafe-skip")
+
+    monkeypatch.setattr("agyloop.bootstrap.build_runner", _must_not_build)
+    with patch("agyloop.infrastructure.agent.cli_argv.os.geteuid", return_value=501):
+        result = _invoke(
+            "run",
+            str(plan),
+            "--cwd",
+            str(tmp_path),
+            "--unsafe-skip-permissions",
+        )
+    combined = _plain(result.stdout + result.stderr + result.output)
+    lowered = combined.lower()
+    assert result.exit_code != 0
+    assert "36" in combined
+    assert "build_agy_argv" in combined
+    assert "sdk" in lowered
+    assert "yolo" in lowered
+    assert "dangerously-skip-permissions" in lowered
+    assert result.exception is None or not isinstance(result.exception, AssertionError)

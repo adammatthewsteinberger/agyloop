@@ -31,13 +31,16 @@ does nothing. agyloop's controls:
 1. **SDK path (default).** Autonomy is `policy.allow_all()` with
    `workspace_only()` and destructive-command denies. agyloop never passes
    `--dangerously-skip-permissions` on this path. `--yolo` is the explicit
-   way to drop workspace/destructive scopes.
+   way to drop workspace/destructive scopes. `agyloop run --unsafe-skip-permissions`
+   is **refused** (fail closed): that flag is for `build_agy_argv`, not the
+   SDK gateway. The refusal prints the #36 footgun warning.
 2. **CLI adapter argv.** Default invocation is `--sandbox` with settings
    `toolPermission = "proceed-in-sandbox"` and
    `permissions.deny = ["unsandboxed"]`. The argv builder **refuses to emit**
    `--dangerously-skip-permissions` together with `--sandbox`.
 3. **`--unsafe-skip-permissions` opt-in** (maps to
-   `--dangerously-skip-permissions` on the CLI adapter only):
+   `--dangerously-skip-permissions` on the CLI adapter argv builder only;
+   not honored by `agyloop run`):
    - refuses to combine with `--sandbox` (does not silently neuter it)
    - refuses to run as root (`euid == 0`)
    - refuses to run outside a git repository unless the cwd is allowlisted
