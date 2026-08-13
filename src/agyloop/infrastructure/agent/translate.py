@@ -14,13 +14,13 @@ from datetime import timedelta
 from google.antigravity.types import AntigravityValidationError
 
 from agyloop.application.dto import TurnOutcome
-from agyloop.domain.classify import TurnSignals
+from agyloop.domain.classify import TurnSignals, looks_like_withdrawn_model
 from agyloop.domain.completion import StructuredVerdict
 from agyloop.domain.errors import AgentConfigError
 
-_HTTP_STATUS = re.compile(r"\b(401|403|408|429|500|503)\b")
+_HTTP_STATUS = re.compile(r"\b(401|403|404|408|429|500|503)\b")
 _GOOGLE_STATUS = re.compile(
-    r"\b(UNAUTHENTICATED|PERMISSION_DENIED|RESOURCE_EXHAUSTED|UNAVAILABLE)\b"
+    r"\b(UNAUTHENTICATED|PERMISSION_DENIED|NOT_FOUND|RESOURCE_EXHAUSTED|UNAVAILABLE)\b"
 )
 _ERROR_CODE = re.compile(r"\b(rate_limit_exceeded|quota_exceeded)\b")
 _RETRY_DELAY = re.compile(
@@ -61,6 +61,12 @@ def outcome_from_exception(
     """Map a drain-time exception to a TurnOutcome, or raise if it is our bug."""
     if isinstance(exc, AntigravityValidationError):
         raise AgentConfigError(str(exc)) from exc
+    if looks_like_withdrawn_model(str(exc)):
+        raise AgentConfigError(
+            "Gemini model is withdrawn or missing (404 / NOT_FOUND). "
+            "This is terminal, not Available. "
+            f"{exc}"
+        ) from exc
     return TurnOutcome(
         signals=signals_from_exception(exc),
         verdict=None,

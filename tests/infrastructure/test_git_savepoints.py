@@ -48,6 +48,26 @@ def test_create_commits_worktree_and_ignores_agyloop_dir(tmp_path: Path) -> None
     assert listed[0].sha == point.sha
 
 
+def test_create_skips_pycache_and_bytecode(tmp_path: Path) -> None:
+    repo = _init_repo(tmp_path)
+    run_dir = RunDirectory.create(runs_root_for(repo), cwd=repo)
+    (repo / "pkg").mkdir()
+    (repo / "pkg" / "mod.py").write_text("x = 1\n", encoding="utf-8")
+    pycache = repo / "pkg" / "__pycache__"
+    pycache.mkdir()
+    (pycache / "mod.cpython-312.pyc").write_bytes(b"\0pyc")
+    (repo / "pkg" / "mod.pyo").write_bytes(b"\0pyo")
+    store = GitSavePointStore(cwd=repo, index_path=run_dir.savepoints_path)
+    run_id = run_dir.read_meta().run_id
+    point = store.create(run_id=run_id, label="turn", attempt=1, summary="code")
+    assert point is not None
+    assert point.committed is True
+    names = _git(repo, "ls-tree", "-r", "--name-only", "HEAD")
+    assert "pkg/mod.py" in names
+    assert "__pycache__" not in names
+    assert "mod.pyo" not in names
+
+
 def test_unchanged_tree_is_ref_only_no_empty_commit(tmp_path: Path) -> None:
     repo = _init_repo(tmp_path)
     run_dir = RunDirectory.create(runs_root_for(repo), cwd=repo)

@@ -13,3 +13,6 @@ is the reporting policy. Operator notes:
   fields.
 - Generated REST (`agyloop api`) sends `GOOGLE_API_KEY` as a query parameter
   to Google's Developer endpoint. Treat that key as secret.
+- Input-detection retarget may copy-patch Apache-2.0 `localharness`. The
+  optional rewrite proxy is loopback-only and does not install a system CA
+  unless `AGYLOOP_INSTALL_REWRITE_CA=1`.

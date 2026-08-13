@@ -30,6 +30,12 @@ def doctor(ctx: typer.Context) -> None:
         raise typer.Exit(code=1)
 
 
+@app.command("repair-harness")
+def repair_harness() -> None:
+    """Restore a bundled localharness backup created by agyloop's site-packages patch."""
+    typer.echo(bootstrap.repair_harness())
+
+
 @app.command("explain-classify")
 def explain_classify(
     message: Annotated[

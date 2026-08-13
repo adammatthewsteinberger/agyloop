@@ -50,6 +50,20 @@ does nothing. agyloop's controls:
 `--print-timeout` is always raised explicitly; the CLI default of 5 minutes
 is too short for an autonomous turn.
 
+## Harness input-detection retarget
+
+The Antigravity Go `localharness` hardcodes `gemini-2.5-flash-lite` for
+input detection. agyloop may copy-patch that binary (Apache-2.0) into
+`~/.cache/agyloop/localharness` and set `ANTIGRAVITY_HARNESS_PATH`. A
+site-packages overwrite always writes a `.agyloop-bak` first and restores on
+`agyloop doctor repair-harness` or process exit when agyloop created the
+backup. `AGYLOOP_NO_SITE_PACKAGES_PATCH=1` disables that layer.
+
+The optional localhost Gemini rewrite proxy (`AGYLOOP_GEMINI_REWRITE_PROXY`)
+listens on loopback only and rewrites only the withdrawn model id. It does
+**not** intercept other hosts or other users' traffic. It does **not**
+install a system-wide CA unless you pass `AGYLOOP_INSTALL_REWRITE_CA=1`.
+
 ## Never block on a human
 
 Interactive hooks (`ToolConfirmationHook`, `AskQuestionHook`) are never

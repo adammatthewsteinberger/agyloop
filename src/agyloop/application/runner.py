@@ -523,37 +523,42 @@ class AutonomousRunner:
                     self._stream_ui.on_assistant(outcome.output_text)
                     self._emit_chatter("chatter.assistant", outcome.output_text)
                     self._maybe_notify_credits(capacity)
-                    self._audit.record(
-                        "turn",
-                        {
-                            "attempt": attempt,
-                            "capacity": type(capacity).__name__,
-                            "cost_usd": outcome.cost_usd,
-                            "run_id": self._run_id,
-                            "session_id": session_id,
-                            "trace_id": self._trace_id,
-                            "turn_id": turn_id,
-                            "model": self._profile.model,
-                            "effort": self._profile.effort,
-                        },
-                    )
-                    self._events.emit(
-                        "turn.completed",
-                        {
-                            "capacity": type(capacity).__name__,
-                            "cost_usd": outcome.cost_usd,
-                            "verdict": type(verdict).__name__,
-                            "model": self._profile.model,
-                            "effort": self._profile.effort,
-                        },
-                    )
+                    tokens, dollars = self._turn_spend(outcome)
+                    turn_payload: dict[str, Any] = {
+                        "attempt": attempt,
+                        "capacity": type(capacity).__name__,
+                        "cost_usd": dollars,
+                        "prompt_tokens": outcome.prompt_tokens,
+                        "completion_tokens": outcome.completion_tokens,
+                        "run_id": self._run_id,
+                        "session_id": session_id,
+                        "trace_id": self._trace_id,
+                        "turn_id": turn_id,
+                        "model": self._profile.model,
+                        "effort": self._profile.effort,
+                    }
+                    completed_payload: dict[str, Any] = {
+                        "capacity": type(capacity).__name__,
+                        "cost_usd": dollars,
+                        "prompt_tokens": outcome.prompt_tokens,
+                        "completion_tokens": outcome.completion_tokens,
+                        "verdict": type(verdict).__name__,
+                        "model": self._profile.model,
+                        "effort": self._profile.effort,
+                    }
+                    if outcome.signals.exception_type:
+                        completed_payload["exception_type"] = outcome.signals.exception_type
+                        detail = outcome.signals.exception_message or outcome.signals.message or ""
+                        completed_payload["exception_message"] = detail[:500]
+                    self._audit.record("turn", turn_payload)
+                    self._events.emit("turn.completed", completed_payload)
                     self._log.info(
                         "turn.completed",
                         attempt=attempt,
                         turn_id=turn_id,
                         capacity=type(capacity).__name__,
                         verdict=type(verdict).__name__,
-                        cost_usd=outcome.cost_usd,
+                        cost_usd=dollars,
                         session_id=session_id,
                     )
 
@@ -568,7 +573,6 @@ class AutonomousRunner:
                         ),
                     )
 
-                    tokens, dollars = self._turn_spend(outcome)
                     state, decision = decide_after_turn(
                         state,
                         capacity=capacity,
@@ -813,6 +817,13 @@ class AutonomousRunner:
         except BaseException as exc:
             self._log.error("run.exception", error=type(exc).__name__, detail=str(exc)[:500])
             with contextlib.suppress(Exception):
+                self._events.emit(
+                    "run.exception",
+                    {
+                        "error": type(exc).__name__,
+                        "detail": str(exc)[:500],
+                    },
+                )
                 self._update_meta(
                     status="failed",
                     phase=Phase.FAILED.name,
