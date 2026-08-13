@@ -201,6 +201,45 @@ def test_rpd_default_interval_is_fifteen_minutes() -> None:
     assert at == NOW + timedelta(minutes=15)
 
 
+def test_no_probe_rpd_waits_to_pacific_midnight_not_interval() -> None:
+    """--no-probe must sleep to the computed RPD boundary, not poll every 15 min."""
+    config = WaitPolicyConfig(no_probe=True, rpd_probe_interval=timedelta(minutes=15))
+    resets_at = next_pacific_midnight(NOW)
+    at = next_probe_instant(
+        WindowExhausted(rate_limit_type="rpd", resets_at=resets_at),
+        now=NOW,
+        started_waiting_at=NOW,
+        probe_count=0,
+        config=config,
+    )
+    assert at == resets_at + config.reset_grace
+    assert at - NOW > timedelta(hours=1)
+
+
+def test_no_probe_credits_still_uses_cadence_not_midnight() -> None:
+    config = WaitPolicyConfig(no_probe=True, credits_probe_interval=timedelta(seconds=120))
+    midnight = next_pacific_midnight(NOW)
+    at = next_probe_instant(
+        CreditsExhausted(), now=NOW, started_waiting_at=NOW, probe_count=0, config=config
+    )
+    assert at == NOW + timedelta(seconds=120)
+    assert at < midnight
+
+
+def test_no_probe_rpm_stays_short_window_not_rpd_midnight() -> None:
+    config = WaitPolicyConfig(no_probe=True)
+    midnight = next_pacific_midnight(NOW)
+    at = next_probe_instant(
+        WindowExhausted(rate_limit_type="rpm", resets_at=midnight),
+        now=NOW,
+        started_waiting_at=NOW,
+        probe_count=0,
+        config=config,
+    )
+    assert at <= NOW + timedelta(seconds=60)
+    assert at < midnight
+
+
 def test_rpm_window_uses_short_throttle_cadence_not_rpd_midnight() -> None:
     midnight = next_pacific_midnight(NOW)
     at = next_probe_instant(

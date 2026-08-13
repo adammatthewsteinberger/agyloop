@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import time
 from collections.abc import Coroutine
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -21,7 +22,7 @@ from agyloop.domain.control import (
     SetCwdCommand,
     StopCommand,
 )
-from agyloop.domain.waiting import WaitPolicyConfig
+from agyloop.domain.waiting import WaitPolicyConfig, next_pacific_midnight
 from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
 from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
 from tests.application.fakes import (
@@ -44,6 +45,7 @@ from tests.application.fakes import (
     available_signals,
     credits_exhausted_signals,
     rpm_window_signals,
+    window_exhausted_signals,
 )
 
 NOW = datetime(2026, 8, 9, 12, 0, tzinfo=UTC)
@@ -67,6 +69,8 @@ def make_runner(
     notifier: FakeNotifier | None = None,
     save_points: FakeSavePointStore | None = None,
     run_resources: Any | None = None,
+    start: datetime = NOW,
+    no_probe: bool = False,
 ) -> tuple[
     AutonomousRunner,
     FakeAgentGateway,
@@ -77,7 +81,7 @@ def make_runner(
     FakeEventSink,
     FakeCapacityProbe,
 ]:
-    clock = FakeClock(start=NOW)
+    clock = FakeClock(start=start)
     sleeper = FakeSleeper(clock)
     gateway = FakeAgentGateway(turns)
     probe = FakeCapacityProbe(probes)
@@ -85,6 +89,8 @@ def make_runner(
     progress = FakeProgressReporter()
     notifier = notifier or FakeNotifier()
     events = FakeEventSink()
+    if no_probe and not wait_policy.no_probe:
+        wait_policy = replace(wait_policy, no_probe=True)
     runner = AutonomousRunner(
         agent_gateway=gateway,
         capacity_probe=probe,
@@ -103,6 +109,7 @@ def make_runner(
         session_lock=FakeSessionLock(),
         save_points=save_points or FakeSavePointStore(),
         run_resources=run_resources,
+        no_probe=no_probe,
     )
     return runner, gateway, audit, progress, sleeper, notifier, events, probe
 
@@ -173,6 +180,97 @@ def test_credits_exhausted_probe_cadence_notifies_and_resumes() -> None:
         # Cadence backs off; it is not a single sleep-to-reset deadline.
         assert intervals == [cadence, cadence * 2, cadence * 4, cadence * 8, ceiling]
         assert all(until - NOW < timedelta(hours=1) for until in untils)
+        assert any("credits exhausted" in m.lower() for m in notifier.messages)
+        assert elapsed < _WALL_CLOCK_BUDGET
+
+    run(body())
+
+
+def test_rpd_wait_uses_next_pacific_midnight_without_wall_clock_sleep() -> None:
+    """RPD wait is Pacific midnight + grace, driven by FakeClock — not wall time."""
+
+    async def body() -> None:
+        near_midnight = datetime(2026, 8, 10, 6, 50, tzinfo=UTC)
+        midnight = next_pacific_midnight(near_midnight)
+        runner, gateway, _audit, _progress, sleeper, _n, _e, probe = make_runner(
+            turns=[
+                ScriptedTurn(signals=window_exhausted_signals(), verdict=CONTINUE_VERDICT),
+                ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT),
+            ],
+            probes=[available_signals(), available_signals()],
+            start=near_midnight,
+        )
+        started = time.monotonic()
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        elapsed = time.monotonic() - started
+        assert result.success is True
+        assert gateway.sent_prompts == ["start", "keep going"]
+        expected = midnight + timedelta(seconds=60)
+        assert sleeper.wait_log
+        assert sleeper.wait_log[-1] == expected
+        assert probe.calls >= 2
+        assert elapsed < _WALL_CLOCK_BUDGET
+
+    run(body())
+
+
+def test_no_probe_rpd_skips_probe_chat_and_waits_to_pacific_midnight() -> None:
+    """--no-probe: zero probe() calls; sleep to the RPD midnight boundary, then a real turn."""
+
+    async def body() -> None:
+        near_midnight = datetime(2026, 8, 10, 6, 50, tzinfo=UTC)
+        midnight = next_pacific_midnight(near_midnight)
+        runner, gateway, _audit, _progress, sleeper, _n, _e, probe = make_runner(
+            turns=[
+                ScriptedTurn(signals=window_exhausted_signals(), verdict=CONTINUE_VERDICT),
+                ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT),
+            ],
+            probes=[],
+            start=near_midnight,
+            no_probe=True,
+            wait_policy=WaitPolicyConfig(no_probe=True),
+        )
+        started = time.monotonic()
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        elapsed = time.monotonic() - started
+        assert result.success is True
+        assert probe.calls == 0
+        assert gateway.sent_prompts == ["start", "keep going"]
+        assert sleeper.wait_log[-1] == midnight + timedelta(seconds=60)
+        assert elapsed < _WALL_CLOCK_BUDGET
+
+    run(body())
+
+
+def test_no_probe_credits_waits_cadence_skips_probe_and_notifies() -> None:
+    """--no-probe credits: cadence wait, real turn instead of probe chat, notify immediately."""
+
+    async def body() -> None:
+        notifier = FakeNotifier()
+        cadence = timedelta(seconds=10)
+        runner, gateway, _audit, progress, sleeper, notifier, _e, probe = make_runner(
+            turns=[
+                ScriptedTurn(signals=credits_exhausted_signals(), verdict=CONTINUE_VERDICT),
+                ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT),
+            ],
+            probes=[],
+            wait_policy=WaitPolicyConfig(
+                no_probe=True,
+                credits_probe_interval=cadence,
+                credits_probe_ceiling=timedelta(seconds=100),
+            ),
+            notifier=notifier,
+            no_probe=True,
+        )
+        started = time.monotonic()
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        elapsed = time.monotonic() - started
+        assert result.success is True
+        assert probe.calls == 0
+        assert gateway.sent_prompts == ["start", "keep going"]
+        assert len(progress.waits) == 1
+        assert progress.waits[0][1] - NOW == cadence
+        assert sleeper.wait_log[-1] == NOW + cadence
         assert any("credits exhausted" in m.lower() for m in notifier.messages)
         assert elapsed < _WALL_CLOCK_BUDGET
 

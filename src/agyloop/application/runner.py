@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import uuid
+from dataclasses import replace
 from datetime import datetime, timedelta
 from typing import Any, assert_never
 
@@ -277,6 +278,7 @@ class AutonomousRunner:
         run_resources: RunResources | None = None,
         permission_mode: str = DEFAULT_USER_PERMISSION_MODE,
         snapshot_sink: RunSnapshotSink | None = None,
+        no_probe: bool = False,
     ) -> None:
         self._gateway = agent_gateway
         self._probe = capacity_probe
@@ -286,6 +288,9 @@ class AutonomousRunner:
         self._progress = progress
         self._budget = budget
         self._wait_policy = wait_policy
+        self._no_probe = no_probe or wait_policy.no_probe
+        if self._no_probe and not wait_policy.no_probe:
+            self._wait_policy = replace(wait_policy, no_probe=True)
         self._progress_wait = progress_wait
         self._done_marker = done_marker
         self._run_id = run_id
@@ -377,8 +382,12 @@ class AutonomousRunner:
         self._emit_snapshot("started", session_id=None, attempt=0, state=state)
 
         try:
-            preflight_outcome = await self._probe.probe()
-            capacity = self._verdict_capacity(preflight_outcome)
+            capacity: CapacityState
+            if self._no_probe:
+                capacity = Available()
+            else:
+                preflight_outcome = await self._probe.probe()
+                capacity = self._verdict_capacity(preflight_outcome)
             self._last_capacity_name = type(capacity).__name__
             self._log.info(
                 "preflight.completed",
@@ -465,7 +474,7 @@ class AutonomousRunner:
                         self._lock_token = session_id
                         self._log.info("session.lock_acquired", session_id=session_id)
                     self._events.bind(session_id=session_id)
-                    capacity = classify(outcome.signals)
+                    capacity = classify(outcome.signals, now=self._clock.now())
                     self._last_capacity_name = type(capacity).__name__
                     if isinstance(capacity, CreditsExhausted):
                         self._sticky_credits = True
@@ -662,6 +671,15 @@ class AutonomousRunner:
                             session_id=session_id,
                             reason="stopped by operator during wait",
                         )
+                    if self._no_probe:
+                        self._log.info(
+                            "waiting.no_probe_resume",
+                            until=decision.at.isoformat(),
+                            probe_count=state.probe_count,
+                        )
+                        self._update_meta(waiting_until=None, status="active")
+                        decision = SendTurn()
+                        continue
                     probe_outcome = await self._probe.probe()
                     capacity = self._verdict_capacity(probe_outcome)
                     self._last_capacity_name = type(capacity).__name__
@@ -1322,7 +1340,7 @@ class AutonomousRunner:
             )
             self._notifier.notify(
                 "agyloop: credits exhausted — top up the Google account "
-                f"to resume. {purchase} The runner will keep probing."
+                f"to resume. {purchase} The runner will keep retrying."
             )
             self._credits_notified = True
             self._events.emit("notify.credits_exhausted", {"can_purchase": capacity.can_purchase})
@@ -1440,7 +1458,7 @@ class AutonomousRunner:
             self._lock_token = None
 
     def _verdict_capacity(self, outcome: TurnOutcome) -> CapacityState:
-        return classify(outcome.signals)
+        return classify(outcome.signals, now=self._clock.now())
 
     def _completion_verdict(self, outcome: TurnOutcome) -> CompletionVerdict:
         kwargs: dict[str, Any] = {

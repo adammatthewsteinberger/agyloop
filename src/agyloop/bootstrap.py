@@ -26,6 +26,7 @@ from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
 from agyloop.infrastructure.agent.gateway import AntigravityAgentGateway
 from agyloop.infrastructure.agent.probe import AntigravityCapacityProbe
 from agyloop.infrastructure.doctor_env import RealDoctorEnvironment
+from agyloop.infrastructure.notify import StderrNotifier
 from agyloop.infrastructure.rundir import RunDirectory, list_run_directories, runs_root_for
 
 
@@ -67,7 +68,7 @@ class _StderrProgress:
 
 
 class _NoOpCapacityProbe:
-    """``--no-probe``: issue zero chat() requests (wait wiring is Task 8)."""
+    """Safety dummy for ``--no-probe``: if probe() is called, issue zero chat()."""
 
     async def probe(self) -> TurnOutcome:
         return TurnOutcome(signals=TurnSignals(), verdict=None, output_text="", session_id=None)
@@ -128,6 +129,7 @@ def build_runner(
         probe = AntigravityCapacityProbe(cwd=str(cwd), model=model)
     wait_policy = WaitPolicyConfig(
         max_wait=timedelta(seconds=max_wait_seconds) if max_wait_seconds else None,
+        no_probe=no_probe,
     )
     profile = resolve_profile(model=model)
     runner = AutonomousRunner(
@@ -145,6 +147,8 @@ def build_runner(
         trace_id=trace_id,
         profile=profile,
         permission_mode=parsed_mode,
+        notifier=StderrNotifier(),
+        no_probe=no_probe,
     )
     return RunnerContext(
         runner=runner,

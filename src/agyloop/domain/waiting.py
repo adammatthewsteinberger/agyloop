@@ -1,8 +1,9 @@
 """Adaptive wait policy — next probe instant, never a blind sleep.
 
 Quota-aware: RPM/TPM (and TransientThrottle) use a short bounded backoff;
-RPD waits toward Pacific midnight with a 15-minute probe floor; credits
-use a bounded probe cadence with no deadline.
+RPD waits toward Pacific midnight with a 15-minute probe floor (or straight
+to the midnight boundary when ``no_probe``); credits use a bounded probe
+cadence with no deadline.
 """
 
 from __future__ import annotations
@@ -39,6 +40,7 @@ class WaitPolicyConfig:
     throttle_backoff_factor: float = 2.0
     reset_grace: timedelta = timedelta(seconds=60)
     max_wait: timedelta | None = None
+    no_probe: bool = False
 
     def __post_init__(self) -> None:
         if self.credits_probe_interval <= timedelta(0):
@@ -108,6 +110,8 @@ def _window_candidate(
     if state.rate_limit_type in _SHORT_WINDOW_TYPES:
         return _throttle_candidate(now=now, probe_count=probe_count, config=config)
     if state.rate_limit_type == "rpd":
+        if config.no_probe and state.resets_at is not None:
+            return state.resets_at + config.reset_grace
         by_interval = now + config.rpd_probe_interval
         if state.resets_at is None:
             return by_interval
