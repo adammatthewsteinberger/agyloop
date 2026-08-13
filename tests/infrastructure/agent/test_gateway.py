@@ -194,3 +194,37 @@ async def test_gateway_config_wires_finish_tool_schema(fake_agent: _FakeAgent) -
     assert schema_json is not None
     parsed = json.loads(schema_json)
     assert "complete" in parsed["properties"]
+
+
+async def test_resume_failure_degrades_to_fresh_conversation_seeded_with_plan() -> None:
+    agents: list[_FakeAgent] = []
+    calls = {"n": 0}
+
+    def _factory(config: object) -> _FakeAgent:
+        agent = _FakeAgent(config)
+        agents.append(agent)
+        calls["n"] += 1
+        if calls["n"] == 1:
+            agent.response = _FakeResponse(
+                error=AntigravityExecutionError("conversation not found")
+            )
+        else:
+            agent.response = _FakeResponse(text="resumed from plan")
+            agent.conversation_id = "n" * 32
+        return agent
+
+    with patch("agyloop.infrastructure.agent.gateway.Agent", side_effect=_factory):
+        gateway = AntigravityAgentGateway(
+            cwd=".",
+            conversation_id="o" * 32,
+            plan_seed="- [ ] finish the plan",
+        )
+        outcome = await gateway.send_turn("Continue exactly where you left off.")
+        await gateway.close()
+
+    assert len(agents) == 2
+    assert agents[0].config.conversation_id == "o" * 32
+    assert agents[1].config.conversation_id is None
+    assert "- [ ] finish the plan" in agents[1].prompts[0]
+    assert outcome.output_text == "resumed from plan"
+    assert outcome.session_id == "n" * 32

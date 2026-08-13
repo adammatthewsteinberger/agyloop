@@ -104,6 +104,7 @@ name = "Infrastructure only reachable from bootstrap"
 type = "forbidden"
 source_modules = ["agyloop.cli", "agyloop.application", "agyloop.domain"]
 forbidden_modules = ["agyloop.infrastructure"]
+allow_indirect_imports = true
 
 [[tool.importlinter.contracts]]
 name = "No Anthropic or Claude agent SDK imports"

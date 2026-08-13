@@ -52,6 +52,7 @@ class AntigravityAgentGateway:
         system_prompt_append: str = "",
         api_key: str | None = None,
         on_event: EventListener | None = None,
+        plan_seed: str | None = None,
     ) -> None:
         self._cwd = cwd
         self._conversation_id = conversation_id
@@ -61,6 +62,8 @@ class AntigravityAgentGateway:
         self._system_prompt_append = system_prompt_append
         self._api_key = api_key
         self._on_event = on_event
+        self._plan_seed = plan_seed
+        self._resume_degraded = False
         self._agent: Agent | None = None
 
     def resolve_tool_approval(self, request_id: str, *, allow: bool, reason: str = "") -> bool:
@@ -146,6 +149,11 @@ class AntigravityAgentGateway:
             AntigravityExecutionError,
             AntigravityConnectionError,
         ) as exc:
+            if self._should_degrade_resume(exc):
+                self._conversation_id = None
+                self._resume_degraded = True
+                await self.close()
+                return await self.send_turn(self._seeded_prompt(prompt_text))
             partial = partial_text_from_response(response) if response is not None else ""
             session_id = agent.conversation_id
             return outcome_from_exception(
@@ -153,6 +161,23 @@ class AntigravityAgentGateway:
                 output_text=partial,
                 session_id=session_id if isinstance(session_id, str) else None,
             )
+
+    def _should_degrade_resume(self, exc: BaseException) -> bool:
+        if not self._conversation_id or self._resume_degraded:
+            return False
+        text = str(exc).lower()
+        return "conversation" in text and any(
+            marker in text for marker in ("not found", "unknown", "invalid", "expired")
+        )
+
+    def _seeded_prompt(self, prompt_text: str) -> str:
+        seed = (self._plan_seed or "").strip()
+        if not seed:
+            return prompt_text
+        return (
+            "Previous conversation could not be resumed. Continue from this "
+            f"persisted plan state:\n\n{seed}\n\n{prompt_text}"
+        )
 
     async def close(self) -> None:
         if self._agent is not None:
