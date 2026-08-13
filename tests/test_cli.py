@@ -14,6 +14,7 @@ from agyloop.bootstrap import RunnerContext, build_runner
 from agyloop.cli import asyncio as cli_asyncio
 from agyloop.cli.app import app
 from agyloop.domain.session import SessionRef
+from agyloop.infrastructure.agent.cli_argv import UNSAFE_SKIP_WARNING
 from agyloop.infrastructure.rundir import (
     RunDirectory,
     list_run_directories,
@@ -443,6 +444,32 @@ def test_run_unsafe_skip_permissions_refuses_root(
     combined = _plain(result.stdout + result.stderr + result.output).lower()
     assert result.exit_code != 0
     assert "root" in combined
+    assert UNSAFE_SKIP_WARNING.lower() in combined
+
+
+def test_run_unsafe_skip_permissions_refuses_outside_git(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [ ] do the thing\n", encoding="utf-8")
+
+    def _must_not_build(**kwargs: object) -> None:
+        del kwargs
+        raise AssertionError("build_runner must not run outside git")
+
+    monkeypatch.setattr("agyloop.bootstrap.build_runner", _must_not_build)
+    with patch("agyloop.infrastructure.agent.cli_argv.os.geteuid", return_value=501):
+        result = _invoke(
+            "run",
+            str(plan),
+            "--cwd",
+            str(tmp_path),
+            "--unsafe-skip-permissions",
+        )
+    combined = _plain(result.stdout + result.stderr + result.output).lower()
+    assert result.exit_code != 0
+    assert "git repository" in combined
+    assert UNSAFE_SKIP_WARNING.lower() in combined
 
 
 def test_run_unsafe_skip_permissions_refuses_sdk_path(
@@ -469,6 +496,7 @@ def test_run_unsafe_skip_permissions_refuses_sdk_path(
     lowered = combined.lower()
     assert result.exit_code != 0
     assert "36" in combined
+    assert UNSAFE_SKIP_WARNING in combined
     assert "build_agy_argv" in combined
     assert "sdk" in lowered
     assert "yolo" in lowered

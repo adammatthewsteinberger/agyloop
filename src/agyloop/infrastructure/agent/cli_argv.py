@@ -26,6 +26,10 @@ DEFAULT_PRINT_TIMEOUT = "24h0m0s"
 _ALLOWLIST_ENV = "AGYLOOP_UNSAFE_SKIP_ALLOWLIST"
 
 
+def _unsafe_refusal(reason: str) -> UnsafeSkipPermissionsError:
+    return UnsafeSkipPermissionsError(f"{reason}\n{UNSAFE_SKIP_WARNING}")
+
+
 @dataclass(frozen=True, slots=True)
 class AgyCliInvocation:
     argv: tuple[str, ...]
@@ -74,16 +78,14 @@ def validate_unsafe_skip_permissions(
 ) -> None:
     """Refuse the CLI skip-permissions opt-in when it would be a footgun."""
     if sandbox:
-        raise UnsafeSkipPermissionsError(
+        raise _unsafe_refusal(
             "--unsafe-skip-permissions refuses to combine with --sandbox; "
             f"that combination defeats the sandbox ({ISSUE_36_URL})"
         )
     if _effective_uid() == 0:
-        raise UnsafeSkipPermissionsError(
-            "--unsafe-skip-permissions refuses to run as root (euid 0)"
-        )
+        raise _unsafe_refusal("--unsafe-skip-permissions refuses to run as root (euid 0)")
     if not _is_git_repo(cwd) and not _is_allowlisted(cwd, allowlist):
-        raise UnsafeSkipPermissionsError(
+        raise _unsafe_refusal(
             "--unsafe-skip-permissions refuses to run outside a git repository "
             "unless the directory is allowlisted"
         )
@@ -131,7 +133,7 @@ def build_agy_argv(
         }
 
     if "--dangerously-skip-permissions" in argv and "--sandbox" in argv:
-        raise UnsafeSkipPermissionsError(
+        raise _unsafe_refusal(
             "refusing to emit --dangerously-skip-permissions together with "
             f"--sandbox ({ISSUE_36_URL})"
         )

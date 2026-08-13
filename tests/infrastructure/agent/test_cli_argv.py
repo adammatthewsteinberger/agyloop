@@ -61,16 +61,24 @@ def test_unsafe_skip_permissions_refuses_sandbox_combo(tmp_path: Path) -> None:
             sandbox=True,
             unsafe_skip_permissions=True,
         )
-    assert "36" in str(exc.value) or ISSUE_36_URL in str(exc.value)
+    assert UNSAFE_SKIP_WARNING in str(exc.value)
 
 
 def test_unsafe_skip_permissions_refuses_root(tmp_path: Path) -> None:
     _init_git(tmp_path)
     euid = "agyloop.infrastructure.agent.cli_argv.os.geteuid"
-    with patch(euid, return_value=0), pytest.raises(UnsafeSkipPermissionsError, match="root"):
+    with (
+        patch(euid, return_value=0),
+        pytest.raises(UnsafeSkipPermissionsError, match="root") as validate_exc,
+    ):
         validate_unsafe_skip_permissions(cwd=tmp_path)
-    with patch(euid, return_value=0), pytest.raises(UnsafeSkipPermissionsError, match="root"):
+    assert UNSAFE_SKIP_WARNING in str(validate_exc.value)
+    with (
+        patch(euid, return_value=0),
+        pytest.raises(UnsafeSkipPermissionsError, match="root") as build_exc,
+    ):
         build_agy_argv(prompt="hello", cwd=tmp_path, unsafe_skip_permissions=True)
+    assert UNSAFE_SKIP_WARNING in str(build_exc.value)
 
 
 def test_unsafe_skip_permissions_allows_non_root(tmp_path: Path) -> None:
@@ -84,9 +92,10 @@ def test_unsafe_skip_permissions_allows_non_root(tmp_path: Path) -> None:
 def test_unsafe_skip_permissions_refuses_outside_git(tmp_path: Path) -> None:
     with (
         patch("agyloop.infrastructure.agent.cli_argv.os.geteuid", return_value=501),
-        pytest.raises(UnsafeSkipPermissionsError, match="git"),
+        pytest.raises(UnsafeSkipPermissionsError, match="git") as exc,
     ):
         validate_unsafe_skip_permissions(cwd=tmp_path)
+    assert UNSAFE_SKIP_WARNING in str(exc.value)
 
 
 def test_unsafe_skip_permissions_allows_allowlisted_non_git(tmp_path: Path) -> None:
