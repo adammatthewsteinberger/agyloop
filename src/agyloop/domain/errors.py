@@ -24,3 +24,11 @@ class AuthenticationFailedError(AgyloopError):
 
     Never retryable — the run loop must abort rather than wait.
     """
+
+
+class AgentConfigError(AgyloopError):
+    """Invalid agent configuration — a bug in our options/policy builder.
+
+    Wraps vendor ``AntigravityValidationError`` so the port never leaks
+    ``google.antigravity`` types.
+    """

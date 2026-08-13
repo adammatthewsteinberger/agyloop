@@ -76,6 +76,10 @@ strict = true
 packages = ["agyloop"]
 mypy_path = "src"
 
+[[tool.mypy.overrides]]
+module = ["google.antigravity", "google.antigravity.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["."]

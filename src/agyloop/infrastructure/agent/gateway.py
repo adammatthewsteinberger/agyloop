@@ -1,0 +1,160 @@
+"""``AgentGateway`` backed by ``google.antigravity.Agent`` + ``LocalAgentConfig``.
+
+Wraps ``Agent(config)`` as an async context manager, drains ``chat()`` inside
+try/except, and maps ``Antigravity*Error`` into ``TurnSignals`` for
+``classify()``. Vendor types never leave this adapter.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any
+
+from google.antigravity import Agent, LocalAgentConfig
+from google.antigravity.types import (
+    AntigravityCancelledError,
+    AntigravityConnectionError,
+    AntigravityExecutionError,
+    AntigravityValidationError,
+    ChatResponse,
+)
+
+from agyloop.application.dto import TurnOutcome
+from agyloop.domain.classify import TurnSignals
+from agyloop.domain.errors import AgentConfigError
+from agyloop.domain.model_profile import ModelEffortProfile
+from agyloop.domain.permission import (
+    DEFAULT_USER_PERMISSION_MODE,
+    UserPermissionMode,
+    parse_user_permission_mode,
+)
+from agyloop.infrastructure.agent.options import build_local_config
+from agyloop.infrastructure.agent.translate import (
+    outcome_from_exception,
+    partial_text_from_response,
+    verdict_from_structured,
+)
+
+EventListener = Callable[[dict[str, object]], None]
+
+
+class AntigravityAgentGateway:
+    """One live Antigravity Agent session. Connect lazily on first send_turn()."""
+
+    def __init__(
+        self,
+        *,
+        cwd: str,
+        conversation_id: str | None = None,
+        model: str | None = None,
+        permission_mode: UserPermissionMode = DEFAULT_USER_PERMISSION_MODE,
+        add_dirs: list[str] | None = None,
+        system_prompt_append: str = "",
+        api_key: str | None = None,
+        on_event: EventListener | None = None,
+    ) -> None:
+        self._cwd = cwd
+        self._conversation_id = conversation_id
+        self._model = model
+        self._permission_mode: UserPermissionMode = permission_mode
+        self._add_dirs = list(add_dirs or [])
+        self._system_prompt_append = system_prompt_append
+        self._api_key = api_key
+        self._on_event = on_event
+        self._agent: Agent | None = None
+
+    def resolve_tool_approval(self, request_id: str, *, allow: bool, reason: str = "") -> bool:
+        del request_id, allow, reason
+        return False
+
+    def _config(self) -> LocalAgentConfig:
+        return build_local_config(
+            cwd=self._cwd,
+            conversation_id=self._conversation_id,
+            model=self._model,
+            permission_mode=self._permission_mode,
+            add_dirs=self._add_dirs,
+            system_prompt_append=self._system_prompt_append,
+            api_key=self._api_key,
+        )
+
+    async def _reconnect(self) -> None:
+        if self._agent is not None:
+            await self.close()
+
+    async def set_profile(self, profile: ModelEffortProfile) -> None:
+        if self._model == profile.model:
+            return
+        self._model = profile.model
+        await self._reconnect()
+
+    async def set_permission_mode(self, mode: str) -> None:
+        parsed = parse_user_permission_mode(mode)
+        if parsed == self._permission_mode:
+            return
+        self._permission_mode = parsed
+        await self._reconnect()
+
+    async def set_cwd(self, cwd: str) -> None:
+        if cwd == self._cwd:
+            return
+        self._cwd = cwd
+        await self._reconnect()
+
+    async def set_session_resources(self, **kwargs: Any) -> None:
+        changed = False
+        add_dirs = kwargs.get("add_dirs")
+        system_prompt_append = kwargs.get("system_prompt_append")
+        if add_dirs is not None and list(add_dirs) != self._add_dirs:
+            self._add_dirs = list(add_dirs)
+            changed = True
+        if (
+            system_prompt_append is not None
+            and str(system_prompt_append) != self._system_prompt_append
+        ):
+            self._system_prompt_append = str(system_prompt_append)
+            changed = True
+        if changed:
+            await self._reconnect()
+
+    async def _ensure_started(self) -> Agent:
+        if self._agent is None:
+            agent = Agent(self._config())
+            self._agent = await agent.__aenter__()
+        return self._agent
+
+    async def send_turn(self, prompt_text: str) -> TurnOutcome:
+        agent = await self._ensure_started()
+        response: ChatResponse | None = None
+        try:
+            response = await agent.chat(prompt_text)
+            output_text = await response.text()
+            structured = await response.structured_output()
+            session_id = agent.conversation_id
+            if isinstance(session_id, str) and session_id:
+                self._conversation_id = session_id
+            return TurnOutcome(
+                signals=TurnSignals(),
+                verdict=verdict_from_structured(structured),
+                output_text=output_text,
+                session_id=session_id if isinstance(session_id, str) else None,
+            )
+        except AntigravityValidationError as exc:
+            raise AgentConfigError(str(exc)) from exc
+        except (
+            AntigravityCancelledError,
+            AntigravityExecutionError,
+            AntigravityConnectionError,
+        ) as exc:
+            partial = partial_text_from_response(response) if response is not None else ""
+            session_id = agent.conversation_id
+            return outcome_from_exception(
+                exc,
+                output_text=partial,
+                session_id=session_id if isinstance(session_id, str) else None,
+            )
+
+    async def close(self) -> None:
+        if self._agent is not None:
+            await self._agent.__aexit__(None, None, None)
+            self._agent = None
