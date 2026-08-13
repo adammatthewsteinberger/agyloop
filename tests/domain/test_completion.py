@@ -47,8 +47,26 @@ def test_structured_incomplete_outranks_marker_in_text() -> None:
     assert result == Continue(remaining_work=("still going",))
 
 
+def test_invalid_structured_plus_marker_is_continue_never_done() -> None:
+    """Malformed payloads must be passed as present incomplete structured output.
+
+    Passing None would fall through to the marker and yield Done.
+    """
+    result = evaluate(
+        structured=StructuredVerdict(complete=False),
+        output_text=DEFAULT_DONE_MARKER,
+    )
+    assert isinstance(result, Continue)
+    assert not isinstance(result, Done)
+
+
 def test_fallback_marker_present_is_done() -> None:
     result = evaluate(structured=None, output_text="...\nAGYLOOP_TASK_FULLY_COMPLETE\n")
+    assert result == Done(summary="")
+
+
+def test_absent_structured_plus_marker_is_done() -> None:
+    result = evaluate(structured=None, output_text=DEFAULT_DONE_MARKER)
     assert result == Done(summary="")
 
 

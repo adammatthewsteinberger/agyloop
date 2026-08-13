@@ -97,8 +97,10 @@ def evaluate(
     """Decide what a single turn's outcome means for the overall task.
 
     Precedence: a structured verdict is authoritative when present. Only when it
-    is absent do we fall back to substring-matching the done marker in raw text.
-    A missing verdict is never Done.
+    is absent (``structured is None``) do we fall back to substring-matching the
+    done marker in raw text. A present-but-invalid payload must be passed as a
+    complete=False ``StructuredVerdict``, not ``None``; otherwise the marker
+    would yield Done. A missing verdict is never Done.
     """
     if structured is not None:
         if structured.blocked_on is not None:

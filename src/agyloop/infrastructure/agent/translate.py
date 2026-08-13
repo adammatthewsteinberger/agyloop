@@ -70,11 +70,19 @@ def outcome_from_exception(
 
 
 def verdict_from_structured(blob: object) -> StructuredVerdict | None:
-    if not isinstance(blob, dict):
+    """Map a structured_output() payload to a domain verdict.
+
+    ``None`` means the payload was absent (marker fallback may apply).
+    A present but invalid blob is Continue-as-structured so ``evaluate``
+    does not fall through to the done marker.
+    """
+    if blob is None:
         return None
+    if not isinstance(blob, dict):
+        return StructuredVerdict(complete=False)
     expected_fields = {"complete", "remaining_work", "blocked_on", "summary"}
     if set(blob) != expected_fields:
-        return None
+        return StructuredVerdict(complete=False)
 
     complete = blob["complete"]
     raw_remaining = blob.get("remaining_work")
@@ -87,7 +95,7 @@ def verdict_from_structured(blob: object) -> StructuredVerdict | None:
         or (raw_blocked is not None and not isinstance(raw_blocked, str))
         or not isinstance(summary, str)
     ):
-        return None
+        return StructuredVerdict(complete=False)
 
     return StructuredVerdict(
         complete=complete,

@@ -128,13 +128,26 @@ def test_malformed_complete_string_is_continue_never_done() -> None:
         "blocked_on": None,
         "summary": "not actually complete",
     }
-    assert verdict_from_structured(blob) is None
+    assert verdict_from_structured(blob) is not None
     result = _evaluate_structured(blob)
     assert isinstance(result, Continue)
     assert not isinstance(result, Done)
 
 
-def test_structured_output_none_falls_back_to_marker() -> None:
+def test_invalid_structured_blob_plus_marker_is_continue_never_done() -> None:
+    blob = {
+        "complete": "false",
+        "remaining_work": [],
+        "blocked_on": None,
+        "summary": "not actually complete",
+    }
+    result = _evaluate_structured(blob, output_text="AGYLOOP_TASK_FULLY_COMPLETE")
+    assert verdict_from_structured(blob) is not None
+    assert isinstance(result, Continue)
+    assert not isinstance(result, Done)
+
+
+def test_structured_output_none_plus_marker_is_done() -> None:
     result = _evaluate_structured(None, output_text="wrapping up\nAGYLOOP_TASK_FULLY_COMPLETE\n")
     assert result == Done(summary="")
 
