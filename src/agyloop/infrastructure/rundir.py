@@ -63,6 +63,8 @@ class RunDirectory:
         self.events_path = root / "events.jsonl"
         self.meta_path = root / "meta.json"
         self.lock_path = root / "run.lock"
+        self.snapshots_root = root / "snapshots"
+        self.savepoints_path = root / "savepoints.jsonl"
 
     @classmethod
     def create(cls, runs_root: Path, *, cwd: Path, plan_path: Path | None = None) -> RunDirectory:
@@ -172,4 +174,17 @@ def resolve_run_directory(cwd: Path, run_id: str | None = None) -> RunDirectory:
             return directory
     if candidates:
         raise FileNotFoundError("no active agyloop runs found under .agyloop/runs/")
+    raise FileNotFoundError("no agyloop runs found under .agyloop/runs/")
+
+
+def resolve_run_directory_any(cwd: Path, run_id: str | None = None) -> RunDirectory:
+    """Resolve an explicit run (active or not), else newest active, else newest."""
+    if run_id is not None:
+        return RunDirectory.open_existing(runs_root_for(cwd) / run_id)
+    candidates = list_run_directories(cwd)
+    for directory in reversed(candidates):
+        if directory.is_active():
+            return directory
+    if candidates:
+        return candidates[-1]
     raise FileNotFoundError("no agyloop runs found under .agyloop/runs/")

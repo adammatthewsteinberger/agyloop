@@ -279,6 +279,7 @@ class AutonomousRunner:
         permission_mode: str = DEFAULT_USER_PERMISSION_MODE,
         snapshot_sink: RunSnapshotSink | None = None,
         no_probe: bool = False,
+        ramp: int = 0,
     ) -> None:
         self._gateway = agent_gateway
         self._probe = capacity_probe
@@ -315,6 +316,7 @@ class AutonomousRunner:
         self._resources = run_resources or _NullRunResources()
         self._permission_mode = parse_user_permission_mode(permission_mode)
         self._snapshots = snapshot_sink or _NullSnapshotSink()
+        self._ramp = max(0, ramp)
         self._log = (logger or _NullLogger()).bind(
             run_id=run_id,
             component="runner",
@@ -461,6 +463,23 @@ class AutonomousRunner:
                         model=self._profile.model,
                         effort=self._profile.effort,
                     )
+                    if self._ramp > 0 and attempt <= self._ramp:
+                        until = self._clock.now() + timedelta(seconds=1)
+                        self._log.info(
+                            "ramp.wait",
+                            attempt=attempt,
+                            ramp=self._ramp,
+                            until=until.isoformat(),
+                        )
+                        self._events.emit(
+                            "ramp.wait",
+                            {
+                                "attempt": attempt,
+                                "ramp": self._ramp,
+                                "until": until.isoformat(),
+                            },
+                        )
+                        await self._sleeper.sleep_until(until)
 
                     outcome = await self._gateway.send_turn(prompt)
                     self._last_output_text = outcome.output_text or ""

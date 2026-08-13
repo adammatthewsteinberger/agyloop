@@ -71,6 +71,7 @@ def make_runner(
     run_resources: Any | None = None,
     start: datetime = NOW,
     no_probe: bool = False,
+    ramp: int = 0,
 ) -> tuple[
     AutonomousRunner,
     FakeAgentGateway,
@@ -108,6 +109,7 @@ def make_runner(
         save_points=save_points or FakeSavePointStore(),
         run_resources=run_resources,
         no_probe=no_probe,
+        ramp=ramp,
     )
     return runner, gateway, audit, progress, sleeper, notifier, events, probe
 
@@ -856,5 +858,53 @@ def test_probe_auth_failure_clears_waiting_without_forcing_active() -> None:
         ]
         assert finish_clears
         assert any(m.get("status") == "failed" for m in metas)
+
+    run(body())
+
+
+def test_ramp_paces_first_n_turns_without_wall_clock_sleep() -> None:
+    """--ramp N sleeps 1s before each of the first N turns via FakeSleeper."""
+
+    async def body() -> None:
+        runner, gateway, _audit, _progress, sleeper, _n, events, _p = make_runner(
+            turns=[
+                ScriptedTurn(signals=available_signals(), verdict=CONTINUE_VERDICT),
+                ScriptedTurn(signals=available_signals(), verdict=CONTINUE_VERDICT),
+                ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT),
+            ],
+            probes=[],
+            no_probe=True,
+            wait_policy=WaitPolicyConfig(no_probe=True),
+            ramp=2,
+        )
+        started = time.monotonic()
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        elapsed = time.monotonic() - started
+        assert result.success is True
+        assert gateway.sent_prompts == ["start", "keep going", "keep going"]
+        assert sleeper.wait_log[:2] == [
+            NOW + timedelta(seconds=1),
+            NOW + timedelta(seconds=2),
+        ]
+        assert NOW + timedelta(seconds=3) not in sleeper.wait_log
+        assert any(item[0] == "ramp.wait" for item in events.events)
+        assert elapsed < _WALL_CLOCK_BUDGET
+
+    run(body())
+
+
+def test_ramp_zero_does_not_insert_pacing_sleeps() -> None:
+    async def body() -> None:
+        runner, _gateway, _audit, _progress, sleeper, _n, events, _p = make_runner(
+            turns=[ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT)],
+            probes=[],
+            no_probe=True,
+            wait_policy=WaitPolicyConfig(no_probe=True),
+            ramp=0,
+        )
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        assert result.success is True
+        assert sleeper.wait_log == []
+        assert all(item[0] != "ramp.wait" for item in events.events)
 
     run(body())

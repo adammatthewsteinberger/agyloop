@@ -38,9 +38,13 @@ agyloop sessions                # local .agyloop/runs registry only
 agyloop prompt --now "Also cover the error path"
 agyloop prompt --at-break "Then write tests"
 agyloop stop                    # soft-stop the active run
+agyloop snapshot
+agyloop api --help
 ```
 
-Generated Gemini REST `agyloop api` is deferred ([ADR 0006](docs/architecture/decisions/0006-defer-genai-rest.md)).
+Generated Gemini REST is `agyloop api` ([ADR 0015](docs/architecture/decisions/0015-generated-gemini-rest-with-drift-gate.md)).
+Pace cold Enterprise runs with `--ramp N`. Drive a live `agy` binary with
+`--gateway cli`.
 
 ## Capacity model (RPM vs RPD vs credits)
 
@@ -69,10 +73,11 @@ Default SDK path: `allow_all()` + workspace scope + destructive-command
 denies. `--safe` limits tools; `--yolo` drops workspace/destructive scopes.
 
 `--unsafe-skip-permissions` is a **CLI-adapter argv** opt-in for
-`agy --dangerously-skip-permissions` (`build_agy_argv`). `agyloop run` is the
-SDK path and **refuses** the flag. The argv builder refuses root, refuses
-combining with `--sandbox`, and refuses a non-git cwd. agyloop never emits that
-flag together with `--sandbox` ([antigravity-cli#36](https://github.com/google-antigravity/antigravity-cli/issues/36)).
+`agy --dangerously-skip-permissions` (`build_agy_argv`). `agyloop run`
+(`--gateway sdk`, the default) **refuses** the flag. `--gateway cli` honors it
+after the usual gates. The argv builder refuses root, refuses combining with
+`--sandbox`, and refuses a non-git cwd. agyloop never emits that flag together
+with `--sandbox` ([antigravity-cli#36](https://github.com/google-antigravity/antigravity-cli/issues/36)).
 
 ## Tests
 
@@ -89,7 +94,8 @@ pytest -m system                # real FS/git/control + scripted agent; no Googl
 | [SECURITY.md](SECURITY.md) | Sandbox footgun, never-block, reporting |
 | [docs/plans/architecture-and-roadmap.md](docs/plans/architecture-and-roadmap.md) | Design / transplant plan from claudeloop |
 | [docs/plans/research-notes.md](docs/plans/research-notes.md) | Vendor SDK/CLI capacity + autonomy research |
-| [docs/architecture/decisions/0006-defer-genai-rest.md](docs/architecture/decisions/0006-defer-genai-rest.md) | Why `agyloop api` does not ship |
+| [docs/architecture/decisions/0006-defer-genai-rest.md](docs/architecture/decisions/0006-defer-genai-rest.md) | Original REST deferral (superseded) |
+| [docs/architecture/decisions/0015-generated-gemini-rest-with-drift-gate.md](docs/architecture/decisions/0015-generated-gemini-rest-with-drift-gate.md) | Why `agyloop api` ships with a drift gate |
 
 ## Naming
 

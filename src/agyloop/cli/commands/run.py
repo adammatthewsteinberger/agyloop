@@ -50,12 +50,27 @@ def run(
         typer.Option(
             "--unsafe-skip-permissions",
             help=(
-                "Refused on this SDK command. For the CLI adapter argv builder "
-                "(build_agy_argv) only. SDK autonomy uses policies / --yolo, "
-                "never --dangerously-skip-permissions."
+                "Refused on --gateway sdk. On --gateway cli, maps to "
+                "agy --dangerously-skip-permissions after root/git/sandbox gates. "
+                "Never combined with --sandbox (antigravity-cli#36)."
             ),
         ),
     ] = False,
+    ramp: Annotated[
+        int,
+        typer.Option(
+            "--ramp",
+            min=0,
+            help="Pace the first N turns (sleep attempt seconds) against acceleration 429s.",
+        ),
+    ] = 0,
+    gateway: Annotated[
+        str,
+        typer.Option(
+            "--gateway",
+            help="Agent transport: sdk (default, google-antigravity) or cli (live agy subprocess).",
+        ),
+    ] = "sdk",
 ) -> None:
     """Seed a brand-new Antigravity session from PLAN_FILE and run it unattended."""
     _run(
@@ -70,6 +85,8 @@ def run(
         safe=safe,
         yolo=yolo,
         unsafe_skip_permissions=unsafe_skip_permissions,
+        ramp=ramp,
+        gateway=gateway,
     )
 
 
@@ -87,11 +104,21 @@ async def _run(
     safe: bool,
     yolo: bool,
     unsafe_skip_permissions: bool,
+    ramp: int,
+    gateway: str,
 ) -> None:
     cwd = cwd_dir.resolve() if cwd_dir is not None else Path.cwd()
+    try:
+        kind = bootstrap.parse_gateway(gateway)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
     if unsafe_skip_permissions:
         try:
-            bootstrap.refuse_unsafe_skip_on_sdk_path(cwd)
+            if kind == "sdk":
+                bootstrap.refuse_unsafe_skip_on_sdk_path(cwd)
+            else:
+                bootstrap.validate_unsafe_skip_permissions(cwd)
         except UnsafeSkipPermissionsError as exc:
             typer.echo(str(exc), err=True)
             raise typer.Exit(code=1) from exc
@@ -113,6 +140,9 @@ async def _run(
         no_probe=no_probe,
         strict_autonomy=strict_autonomy,
         permission_mode=permission_mode,
+        ramp=ramp,
+        gateway=kind,
+        unsafe_skip_permissions=unsafe_skip_permissions,
     )
     typer.echo(f"Run id: {context.run_id}", err=True)
     result = await run_from_plan_file(context.runner, plan_file)

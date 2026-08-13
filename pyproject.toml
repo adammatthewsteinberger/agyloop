@@ -57,11 +57,21 @@ dev = [
     "twine>=5.0",
 ]
 
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "mkdocstrings[python]>=0.26",
+]
+
 [project.scripts]
 agyloop = "agyloop.cli.app:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agyloop"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/agyloop/infrastructure/api/surface_baseline.json" = "agyloop/infrastructure/api/surface_baseline.json"
+"src/agyloop/infrastructure/api/vertex_baseline.json" = "agyloop/infrastructure/api/vertex_baseline.json"
 
 [tool.ruff]
 line-length = 100

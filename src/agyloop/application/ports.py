@@ -97,9 +97,8 @@ class SessionLock(Protocol):
 
 
 class ApiGateway(Protocol):
-    """Declared for a generated Gemini REST surface. M4 deferred that surface
-    (ADR 0006); this port stays unimplemented until the stability criterion
-    holds. ``agyloop api`` does not ship."""
+    """Generated Gemini REST surface (ADR 0015). ``agyloop api`` is bound from
+    the committed Developer discovery baseline and guarded by a drift gate."""
 
     def invoke(self, method_path: str, **kwargs: Any) -> Any: ...
 

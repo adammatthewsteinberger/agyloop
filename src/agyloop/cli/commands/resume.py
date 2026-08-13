@@ -42,6 +42,21 @@ def resume(
             help="Wait only to computed quota boundaries; issue zero probe requests.",
         ),
     ] = False,
+    ramp: Annotated[
+        int,
+        typer.Option(
+            "--ramp",
+            min=0,
+            help="Pace the first N turns (sleep attempt seconds) against acceleration 429s.",
+        ),
+    ] = 0,
+    gateway: Annotated[
+        str,
+        typer.Option(
+            "--gateway",
+            help="Agent transport: sdk (default) or cli (live agy subprocess).",
+        ),
+    ] = "sdk",
 ) -> None:
     """Resume an agyloop-managed conversation. Uses LocalAgentConfig(conversation_id=…).
 
@@ -55,6 +70,8 @@ def resume(
         max_turns=max_turns,
         max_wait_seconds=max_wait_seconds,
         no_probe=no_probe,
+        ramp=ramp,
+        gateway=gateway,
     )
 
 
@@ -68,8 +85,15 @@ async def _resume(
     max_turns: int | None,
     max_wait_seconds: float | None,
     no_probe: bool,
+    ramp: int,
+    gateway: str,
 ) -> None:
     cwd = cwd_dir.resolve() if cwd_dir is not None else Path.cwd()
+    try:
+        kind = bootstrap.parse_gateway(gateway)
+    except ValueError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
     catalog = bootstrap.build_session_catalog()
     conversation_id = conversation
     if conversation_id is None or last:
@@ -93,6 +117,8 @@ async def _resume(
         max_wait_seconds=max_wait_seconds,
         no_probe=no_probe,
         resume=True,
+        ramp=ramp,
+        gateway=kind,
     )
     typer.echo(f"Run id: {context.run_id}", err=True)
     result = await resume_explicit(context.runner)

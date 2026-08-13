@@ -105,4 +105,5 @@ Report privately via one of:
   the machine running agyloop.
 - Quota / billing exhaustion on your own Google project — that's an
   account concern, not a vulnerability in this tool.
-- The deferred `agyloop api` REST surface (see ADR 0006); it does not ship.
+- The generated `agyloop api` REST surface (see ADR 0015); treat
+  `GOOGLE_API_KEY` as secret. Vertex lane is not inventoried.

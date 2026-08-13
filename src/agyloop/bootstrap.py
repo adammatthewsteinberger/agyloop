@@ -6,11 +6,12 @@ CLI and application never import infrastructure; they ask this module.
 from __future__ import annotations
 
 import asyncio
+import shutil
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, assert_never
 
 from agyloop.application.dto import TurnOutcome
 from agyloop.application.ports import AgentGateway, CapacityProbe
@@ -23,6 +24,7 @@ from agyloop.domain.errors import UnsafeSkipPermissionsError
 from agyloop.domain.model_profile import resolve_profile
 from agyloop.domain.permission import DEFAULT_USER_PERMISSION_MODE, parse_user_permission_mode
 from agyloop.domain.plan import WorkPlan
+from agyloop.domain.snapshot import SnapshotRef
 from agyloop.domain.waiting import WaitPolicyConfig
 from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
 from agyloop.infrastructure.agent.cli_argv import UNSAFE_SKIP_WARNING
@@ -30,16 +32,23 @@ from agyloop.infrastructure.agent.cli_argv import (
     validate_unsafe_skip_permissions as _validate_unsafe_skip_permissions,
 )
 from agyloop.infrastructure.agent.gateway import AntigravityAgentGateway
+from agyloop.infrastructure.agent.gateway_cli import AgyCliAgentGateway
 from agyloop.infrastructure.agent.probe import AntigravityCapacityProbe
+from agyloop.infrastructure.api.binder import build_api_click_group as _build_api_click_group
 from agyloop.infrastructure.control import FileRunControl
 from agyloop.infrastructure.doctor_env import RealDoctorEnvironment
+from agyloop.infrastructure.git_savepoints import GitSavePointStore
 from agyloop.infrastructure.notify import StderrNotifier
 from agyloop.infrastructure.rundir import (
     RunDirectory,
     list_run_directories,
     resolve_run_directory,
+    resolve_run_directory_any,
     runs_root_for,
 )
+from agyloop.infrastructure.snapshot import RunSnapshotBuilder
+
+GatewayKind = Literal["sdk", "cli"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,6 +110,51 @@ def _plan_seed_from_registry(cwd: Path, conversation_id: str | None) -> str | No
     return directory.read_plan_text() if directory is not None else None
 
 
+def parse_gateway(value: str) -> GatewayKind:
+    key = value.strip().lower()
+    if key == "sdk":
+        return "sdk"
+    if key == "cli":
+        return "cli"
+    raise ValueError(f"unknown gateway {value!r}; expected 'sdk' or 'cli'")
+
+
+def build_api_click_group() -> Any:
+    return _build_api_click_group()
+
+
+def _build_gateway(
+    *,
+    kind: GatewayKind,
+    cwd: Path,
+    conversation_id: str | None,
+    model: str | None,
+    permission_mode: Any,
+    plan_seed: str | None,
+    strict_autonomy: bool,
+    unsafe_skip_permissions: bool,
+) -> AgentGateway:
+    match kind:
+        case "cli":
+            return AgyCliAgentGateway(
+                cwd=str(cwd),
+                conversation_id=conversation_id,
+                model=model,
+                unsafe_skip_permissions=unsafe_skip_permissions,
+            )
+        case "sdk":
+            return AntigravityAgentGateway(
+                cwd=str(cwd),
+                conversation_id=conversation_id,
+                model=model,
+                permission_mode=permission_mode,
+                plan_seed=plan_seed,
+                strict_autonomy=strict_autonomy,
+            )
+        case _:
+            assert_never(kind)
+
+
 def build_runner(
     *,
     cwd: Path,
@@ -116,6 +170,9 @@ def build_runner(
     strict_autonomy: bool = False,
     permission_mode: str = DEFAULT_USER_PERMISSION_MODE,
     resume: bool = False,
+    ramp: int = 0,
+    gateway: str = "sdk",
+    unsafe_skip_permissions: bool = False,
 ) -> RunnerContext:
     run_dir = _run_directory_for_conversation(cwd, conversation_id) if resume else None
     if run_dir is None:
@@ -126,13 +183,16 @@ def build_runner(
     seed = plan_seed or _plan_seed_from_registry(cwd, conversation_id)
     if seed is None and plan is not None:
         seed = plan.raw_text
-    gateway = AntigravityAgentGateway(
-        cwd=str(cwd),
+    kind = parse_gateway(gateway)
+    agent_gateway = _build_gateway(
+        kind=kind,
+        cwd=cwd,
         conversation_id=conversation_id,
         model=model,
         permission_mode=parsed_mode,
         plan_seed=seed,
         strict_autonomy=strict_autonomy,
+        unsafe_skip_permissions=unsafe_skip_permissions,
     )
     probe: CapacityProbe
     if no_probe:
@@ -144,8 +204,9 @@ def build_runner(
         no_probe=no_probe,
     )
     profile = resolve_profile(model=model)
+    save_points = GitSavePointStore(cwd=cwd, index_path=run_dir.savepoints_path)
     runner = AutonomousRunner(
-        agent_gateway=gateway,
+        agent_gateway=agent_gateway,
         capacity_probe=probe,
         clock=_SystemClock(),
         sleeper=_AsyncioSleeper(),
@@ -162,10 +223,13 @@ def build_runner(
         notifier=StderrNotifier(),
         no_probe=no_probe,
         run_control=FileRunControl(run_dir.inbox),
+        save_points=save_points,
+        snapshot_sink=RunSnapshotBuilder(run_dir),
+        ramp=ramp,
     )
     return RunnerContext(
         runner=runner,
-        gateway=gateway,
+        gateway=agent_gateway,
         run_dir=run_dir,
         run_id=run_id,
         trace_id=trace_id,
@@ -212,3 +276,64 @@ def refuse_unsafe_skip_on_sdk_path(cwd: Path) -> None:
         "--yolo for autonomy scope and never emits --dangerously-skip-permissions. "
         f"{UNSAFE_SKIP_WARNING}"
     )
+
+
+def list_savepoints(cwd: Path, run_id: str | None = None) -> list[dict[str, Any]]:
+    directory = resolve_run_directory_any(cwd, run_id)
+    meta = directory.read_meta()
+    store = GitSavePointStore(cwd=cwd, index_path=directory.savepoints_path)
+    return [
+        {
+            "n": point.n,
+            "ref": point.ref,
+            "sha": point.sha,
+            "label": point.label,
+            "at": point.at.isoformat(),
+        }
+        for point in store.list_points(meta.run_id)
+    ]
+
+
+def unwind_savepoint(
+    cwd: Path,
+    to: str,
+    *,
+    backup: bool = True,
+    run_id: str | None = None,
+) -> dict[str, Any]:
+    directory = resolve_run_directory_any(cwd, run_id)
+    meta = directory.read_meta()
+    if directory.is_active():
+        raise RuntimeError(
+            f"run {meta.run_id} is still active (pid {meta.pid}); "
+            "stop it before unwinding save points"
+        )
+    store = GitSavePointStore(cwd=cwd, index_path=directory.savepoints_path)
+    result = store.unwind(run_id=meta.run_id, to=to, backup=backup)
+    return {
+        "to_n": result.to.n,
+        "to_sha": result.to.sha,
+        "backup_ref": result.backup_ref,
+        "restored_sha": result.restored_sha,
+    }
+
+
+def emit_snapshot(
+    cwd: Path,
+    *,
+    run_id: str | None = None,
+    bundle: bool = True,
+    out: Path | None = None,
+) -> SnapshotRef:
+    directory = resolve_run_directory_any(cwd, run_id)
+    builder = RunSnapshotBuilder(directory)
+    ref = builder.emit("manual", bundle=bundle)
+    if ref is None:
+        raise RuntimeError("snapshot emit produced no ref")
+    if out is not None:
+        src = directory.root / ref.path
+        if not src.is_file() and (directory.snapshots_root / "latest.json").is_file():
+            src = directory.snapshots_root / "latest.json"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, out)
+    return ref

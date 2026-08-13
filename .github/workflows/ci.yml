@@ -83,6 +83,18 @@ jobs:
       - run: pytest
       - run: pytest -m system
 
+  docs:
+    name: mkdocs build --strict
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+      - run: python -m pip install --upgrade pip
+      - run: pip install -e ".[docs]"
+      - run: mkdocs build --strict
+
   build:
     name: Package builds and is installable
     runs-on: ubuntu-latest

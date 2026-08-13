@@ -1,0 +1,9 @@
+{
+  "lane": "vertex",
+  "discovery_id": "aiplatform:v1",
+  "revision": null,
+  "method_count": 0,
+  "methods": [],
+  "details": [],
+  "note": "Vertex / Gemini Enterprise is a disjoint API family from the Developer discovery document. This lane is registered so --lane vertex cannot serve Developer methods. Capture a committed Vertex revision before exposing operations."
+}

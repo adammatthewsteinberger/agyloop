@@ -23,7 +23,7 @@ from agyloop.infrastructure.rundir import (
 
 runner = CliRunner()
 
-_NO_COLOR_ENV = {"NO_COLOR": "1", "TERM": "dumb", "FORCE_COLOR": "0"}
+_NO_COLOR_ENV = {"NO_COLOR": "1", "TERM": "dumb", "FORCE_COLOR": "0", "COLUMNS": "120"}
 _ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;]*m")
 
 
@@ -57,39 +57,42 @@ def test_help_option_succeeds() -> None:
     assert "doctor" in stdout
 
 
-def test_api_command_is_deferred() -> None:
-    """M4 ships no generated Gemini REST CLI; ADR 0006 records the deferral."""
-    help_result = _invoke("--help")
-    assert help_result.exit_code == 0
-    help_text = _plain(help_result.stdout)
-    commands = _listed_commands(help_text)
-    assert "api" not in commands
-    assert "adr 0006" in help_text.lower()
-    assert "deferred" in help_text.lower()
-
-    api_result = _invoke("api")
-    assert api_result.exit_code != 0
-    combined = _plain(api_result.stdout + api_result.stderr)
-    assert "no such command" in combined.lower() or "usage" in combined.lower()
-
-
 def _listed_commands(help_text: str) -> set[str]:
     """Command names from the Typer Commands section, not incidental help words."""
     names: set[str] = set()
     in_commands = False
     for line in help_text.splitlines():
-        stripped = line.strip()
-        if stripped.lower().startswith("commands"):
+        stripped = line.strip().lstrip("│").strip()
+        if "commands" in stripped.lower() and stripped.lower().startswith(("commands", "╭")):
             in_commands = True
             continue
         if in_commands:
-            if not stripped:
+            if not stripped or stripped.startswith("╰"):
                 break
             names.add(stripped.split()[0])
     return names
 
 
-def test_adr_0006_restates_stability_criterion_and_that_api_does_not_ship() -> None:
+def test_api_command_is_generated() -> None:
+    """Operator override 2026-08-13: ``agyloop api`` ships with a drift gate (ADR 0015)."""
+    help_result = _invoke("--help")
+    assert help_result.exit_code == 0
+    help_text = _plain(help_result.stdout)
+    commands = _listed_commands(help_text)
+    assert "api" in commands
+    assert "savepoints" in commands
+    assert "snapshot" in commands
+    assert "unwind" in commands
+    assert "adr 0015" in help_text.lower()
+
+    api_result = _invoke("api", "--help")
+    assert api_result.exit_code == 0
+    api_help = _plain(api_result.stdout)
+    assert "models" in api_help.lower()
+    assert "--lane" in api_help
+
+
+def test_adr_0006_restates_stability_criterion() -> None:
     path = (
         Path(__file__).parents[1]
         / "docs"
@@ -101,8 +104,23 @@ def test_adr_0006_restates_stability_criterion_and_that_api_does_not_ship() -> N
     assert "discovery document" in text
     assert "preview" in text
     assert "agyloop api" in text
-    assert "does not ship" in text
     assert "two consecutive" in text
+    assert "superseded" in text
+
+
+def test_adr_0015_ships_rest_with_drift_gate() -> None:
+    path = (
+        Path(__file__).parents[1]
+        / "docs"
+        / "architecture"
+        / "decisions"
+        / "0015-generated-gemini-rest-with-drift-gate.md"
+    )
+    text = path.read_text(encoding="utf-8").lower()
+    assert "drift" in text
+    assert "agyloop api" in text
+    assert "operator" in text
+    assert "0006" in text
 
 
 def test_run_help_renders() -> None:
@@ -115,7 +133,9 @@ def test_run_help_renders() -> None:
     assert "--model" in stdout
     assert "--max-turns" in stdout
     assert "--max-wait" in stdout
-    assert "--unsafe-skip-permissions" in stdout
+    assert "--unsafe-skip" in stdout
+    assert "--ramp" in stdout
+    assert "--gateway" in stdout
 
 
 def test_resume_help_renders() -> None:
@@ -125,6 +145,8 @@ def test_resume_help_renders() -> None:
     stdout = _plain(result.stdout)
     assert "--conversation" in stdout
     assert "--last" in stdout
+    assert "--ramp" in stdout
+    assert "--gateway" in stdout
 
 
 def test_sessions_help_states_registry_only_limitation() -> None:
@@ -535,3 +557,131 @@ def test_run_unsafe_skip_permissions_refuses_sdk_path(
     assert "yolo" in lowered
     assert "dangerously-skip-permissions" in lowered
     assert result.exception is None or not isinstance(result.exception, AssertionError)
+
+
+def test_run_cli_passes_ramp_and_gateway(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [ ] do the thing\n", encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    class _StubRunner:
+        async def run(self, *, initial_prompt: str, continue_prompt: str) -> RunResult:
+            del initial_prompt, continue_prompt
+            return RunResult(
+                success=True,
+                reason="done",
+                session_id="sid",
+                turns_spent=1,
+                dollars_spent=0.0,
+            )
+
+    class _Ctx:
+        runner = _StubRunner()
+        run_id = "run-test"
+
+    def _build_runner(**kwargs: object) -> _Ctx:
+        seen["kwargs"] = kwargs
+        return _Ctx()
+
+    monkeypatch.setattr("agyloop.bootstrap.build_runner", _build_runner)
+    result = _invoke(
+        "run",
+        str(plan),
+        "--cwd",
+        str(tmp_path),
+        "--ramp",
+        "5",
+        "--gateway",
+        "cli",
+    )
+    assert result.exception is None, result.exception
+    assert result.exit_code == 0
+    kwargs = seen["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["ramp"] == 5
+    assert kwargs["gateway"] == "cli"
+
+
+def test_run_gateway_cli_unsafe_skip_reaches_build_runner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / ".git").mkdir()
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [ ] do the thing\n", encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    class _StubRunner:
+        async def run(self, *, initial_prompt: str, continue_prompt: str) -> RunResult:
+            del initial_prompt, continue_prompt
+            return RunResult(
+                success=True,
+                reason="done",
+                session_id="sid",
+                turns_spent=1,
+                dollars_spent=0.0,
+            )
+
+    class _Ctx:
+        runner = _StubRunner()
+        run_id = "run-test"
+
+    def _build_runner(**kwargs: object) -> _Ctx:
+        seen["kwargs"] = kwargs
+        return _Ctx()
+
+    monkeypatch.setattr("agyloop.bootstrap.build_runner", _build_runner)
+    with patch("agyloop.infrastructure.agent.cli_argv.os.geteuid", return_value=501):
+        result = _invoke(
+            "run",
+            str(plan),
+            "--cwd",
+            str(tmp_path),
+            "--gateway",
+            "cli",
+            "--unsafe-skip-permissions",
+        )
+    assert result.exception is None, result.exception
+    assert result.exit_code == 0
+    kwargs = seen["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["gateway"] == "cli"
+    assert kwargs["unsafe_skip_permissions"] is True
+
+
+def test_snapshot_cli_writes_files(tmp_path: Path) -> None:
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    directory.update_meta(status="finished")
+    result = _invoke("snapshot", "--cwd", str(tmp_path), "--run-id", directory.read_meta().run_id)
+    assert result.exit_code == 0, result.output
+    stdout = _plain(result.stdout)
+    assert "snapshot_path:" in stdout
+    assert (directory.snapshots_root / "latest.json").is_file()
+
+
+def test_unwind_refuses_active_run(tmp_path: Path) -> None:
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    result = _invoke(
+        "unwind",
+        "--to",
+        "1",
+        "--cwd",
+        str(tmp_path),
+        "--run-id",
+        directory.read_meta().run_id,
+    )
+    assert result.exit_code == 1
+    assert "still active" in _plain(result.output).lower()
+
+
+def test_savepoints_empty_for_run_without_index(tmp_path: Path) -> None:
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    directory.update_meta(status="finished")
+    result = _invoke(
+        "savepoints",
+        "--cwd",
+        str(tmp_path),
+        "--run-id",
+        directory.read_meta().run_id,
+    )
+    assert result.exit_code == 0
+    assert "no save points" in _plain(result.stdout).lower()

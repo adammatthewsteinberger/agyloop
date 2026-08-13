@@ -1,8 +1,8 @@
 # Using agyloop
 
-Unattended Antigravity / Gemini runs. The SDK path is the default. Generated
-Gemini REST (`agyloop api`) does not ship; see
-[ADR 0006](architecture/decisions/0006-defer-genai-rest.md).
+Unattended Antigravity / Gemini runs. Default transport is the Antigravity
+SDK (`--gateway sdk`). Generated Gemini REST is `agyloop api`; see
+[ADR 0015](architecture/decisions/0015-generated-gemini-rest-with-drift-gate.md).
 
 ## Auth
 
@@ -37,6 +37,8 @@ agyloop run plan.md --max-turns 40 --max-wait 86400 --max-tokens 200000
 agyloop run plan.md --no-probe          # wait to quota boundaries only
 agyloop run plan.md --safe              # nondestructive tools
 agyloop run plan.md --yolo              # drop workspace/destructive SDK scopes
+agyloop run plan.md --ramp 5            # pace the first 5 turns
+agyloop run plan.md --gateway cli       # live agy subprocess instead of SDK
 ```
 
 The plan file is copied under `.agyloop/runs/<run-id>/plan.md`. Completion
@@ -82,6 +84,27 @@ agyloop stop
 These write `.agyloop/runs/<id>/inbox/*.cmd.json`. They never block waiting
 for a human at the keyboard of the running loop.
 
+## Savepoints and snapshots
+
+```bash
+agyloop snapshot                  # handoff JSON under .agyloop/runs/<id>/snapshots/
+agyloop savepoints                # list git refs refs/agyloop/<run_id>/<n>
+agyloop unwind --to 1             # git reset --hard; refuses while the run is active
+```
+
+Savepoint commits use `chore(agyloop):` subjects and never add `.agyloop/` to
+the project history. Unchanged trees get a ref-only checkpoint (no empty
+commit).
+
+## Generated REST
+
+```bash
+agyloop api --help
+agyloop api models generate-content --json '{"model":"models/gemini-2.5-pro"}'
+```
+
+Requires `GOOGLE_API_KEY`. `--lane vertex` is registered but not inventoried.
+
 ## Capacity
 
 | Classifier state | Typical signal | What agyloop does |
@@ -98,15 +121,17 @@ RPM ≠ RPD ≠ credits. A billing wall does not grow a reset timestamp.
 
 ## Permissions and the CLI sandbox
 
-Default SDK autonomy is scoped. See [SECURITY.md](../SECURITY.md) for the
+Default SDK autonomy is scoped. See [Security](security.md) for the
 `--sandbox` + `--dangerously-skip-permissions` footgun
 ([antigravity-cli#36](https://github.com/google-antigravity/antigravity-cli/issues/36)).
 
 `--unsafe-skip-permissions` is the explicit CLI-adapter argv opt-in
-(`build_agy_argv`). `agyloop run` refuses it: the SDK path uses policies /
-`--yolo` and never emits `--dangerously-skip-permissions`. On the argv
-builder it refuses root, refuses `--sandbox`, and refuses a non-git
-directory unless `AGYLOOP_UNSAFE_SKIP_ALLOWLIST` includes it.
+(`build_agy_argv`). `agyloop run --gateway sdk` refuses it: the SDK path uses
+policies / `--yolo` and never emits `--dangerously-skip-permissions`.
+`agyloop run --gateway cli --unsafe-skip-permissions` is valid after refusing
+root, refusing `--sandbox`, and refusing a non-git directory unless
+`AGYLOOP_UNSAFE_SKIP_ALLOWLIST` includes it. agyloop never emits that flag
+together with `--sandbox`.
 
 ## Tests
 

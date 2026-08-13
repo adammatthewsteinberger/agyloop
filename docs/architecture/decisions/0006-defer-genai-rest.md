@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (M4 documented deferral). `agyloop api` does not ship.
+Superseded by [ADR 0015](0015-generated-gemini-rest-with-drift-gate.md) on 2026-08-13 (operator override). The stability criterion recorded here did not hold; the surface shipped anyway with a committed discovery baseline and a drift gate.
 
 ## Context
 
@@ -87,7 +87,7 @@ shape.
 
 ## Decision
 
-**Defer.** `agyloop api` does not ship. The `ApiGateway` application port
+**Defer** (original). `agyloop api` does not ship. The `ApiGateway` application port
 remains declared and unimplemented. No generated binder, no drift-gate
 baseline, no 1:1 guess at Gemini REST.
 
@@ -98,11 +98,13 @@ Mid-run operator control (`stop` / `prompt` writing into
 `.agyloop/runs/<run_id>/inbox/`) is independent of this deferral and may
 ship as M4 polish.
 
+**Superseded.** An operator override on 2026-08-13 shipped the surface anyway.
+See ADR 0015 for the drift gate, the committed 84-method Developer baseline
+(revision `20260812`), and the documented A/B count mismatch (84 vs 91).
+
 ## Consequences
 
-- Help text states the REST surface is deferred (ADR 0006); a CLI test
-  asserts `api` is absent from the command list.
-- A drift gate that hides one operation and fails CI is **not** added,
-  because there is no generated surface to gate.
-- Regenerating a 1:1 CLI from a daily-revision `v1beta` document would rot
-  inside a month; that is the failure mode this ADR exists to prevent.
+- Help text originally stated the REST surface is deferred; that is no longer
+  true after ADR 0015.
+- The original failure mode this ADR existed to prevent — a generated CLI that
+  rots inside a month — is now owned by the drift gate rather than by absence.
