@@ -117,7 +117,6 @@ def build_runner(
     permission_mode: str = DEFAULT_USER_PERMISSION_MODE,
     resume: bool = False,
 ) -> RunnerContext:
-    del strict_autonomy
     run_dir = _run_directory_for_conversation(cwd, conversation_id) if resume else None
     if run_dir is None:
         run_dir = RunDirectory.create(runs_root_for(cwd), cwd=cwd, plan_path=plan_path)
@@ -133,6 +132,7 @@ def build_runner(
         model=model,
         permission_mode=parsed_mode,
         plan_seed=seed,
+        strict_autonomy=strict_autonomy,
     )
     probe: CapacityProbe
     if no_probe:

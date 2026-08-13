@@ -48,11 +48,23 @@ def _finish_tool_schema_json() -> str:
     return json.dumps(COMPLETION_RESPONSE_SCHEMA)
 
 
-def _capabilities_for(permission_mode: UserPermissionMode) -> CapabilitiesConfig:
+def _capabilities_for(
+    permission_mode: UserPermissionMode,
+    *,
+    strict_autonomy: bool = False,
+) -> CapabilitiesConfig:
     schema_json = _finish_tool_schema_json()
     if permission_mode == "safe":
+        tools = list(BuiltinTools.nondestructive())
+        if strict_autonomy:
+            tools = [tool for tool in tools if tool != BuiltinTools.ASK_QUESTION]
         return CapabilitiesConfig(
-            enabled_tools=BuiltinTools.nondestructive(),
+            enabled_tools=tools,
+            finish_tool_schema_json=schema_json,
+        )
+    if strict_autonomy:
+        return CapabilitiesConfig(
+            disabled_tools=[BuiltinTools.ASK_QUESTION],
             finish_tool_schema_json=schema_json,
         )
     return CapabilitiesConfig(finish_tool_schema_json=schema_json)
@@ -67,6 +79,7 @@ def build_local_config(
     add_dirs: Sequence[str] | None = None,
     system_prompt_append: str = "",
     api_key: str | None = None,
+    strict_autonomy: bool = False,
 ) -> LocalAgentConfig:
     """Construct a headless, autonomous ``LocalAgentConfig``.
 
@@ -77,7 +90,7 @@ def build_local_config(
     extra_dirs = [str(Path(path).resolve()) for path in (add_dirs or ())]
     return LocalAgentConfig(
         system_instructions=_additive_system_instructions(system_prompt_append),
-        capabilities=_capabilities_for(permission_mode),
+        capabilities=_capabilities_for(permission_mode, strict_autonomy=strict_autonomy),
         policies=build_autonomy_policies(
             cwd=workspace,
             add_dirs=extra_dirs,
@@ -89,4 +102,5 @@ def build_local_config(
         model=model,
         api_key=api_key,
         response_schema=COMPLETION_RESPONSE_SCHEMA,
+        mcp_servers=[],
     )

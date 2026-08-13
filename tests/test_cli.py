@@ -240,6 +240,39 @@ def test_run_cli_uses_bootstrap_runner(tmp_path: Path, monkeypatch: pytest.Monke
     assert kwargs["no_probe"] is True
 
 
+def test_run_cli_passes_strict_autonomy(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    plan = tmp_path / "plan.md"
+    plan.write_text("- [ ] do the thing\n", encoding="utf-8")
+    seen: dict[str, object] = {}
+
+    class _StubRunner:
+        async def run(self, *, initial_prompt: str, continue_prompt: str) -> RunResult:
+            del initial_prompt, continue_prompt
+            return RunResult(
+                success=True,
+                reason="done",
+                session_id="sid",
+                turns_spent=1,
+                dollars_spent=0.0,
+            )
+
+    class _Ctx:
+        runner = _StubRunner()
+        run_id = "run-test"
+
+    def _build_runner(**kwargs: object) -> _Ctx:
+        seen["kwargs"] = kwargs
+        return _Ctx()
+
+    monkeypatch.setattr("agyloop.bootstrap.build_runner", _build_runner)
+    result = _invoke("run", str(plan), "--cwd", str(tmp_path), "--strict-autonomy")
+    assert result.exception is None, result.exception
+    assert result.exit_code == 0
+    kwargs = seen["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["strict_autonomy"] is True
+
+
 def test_resume_last_seeds_from_plan_md_not_truncated_preview(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

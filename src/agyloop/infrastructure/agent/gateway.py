@@ -53,6 +53,7 @@ class AntigravityAgentGateway:
         api_key: str | None = None,
         on_event: EventListener | None = None,
         plan_seed: str | None = None,
+        strict_autonomy: bool = False,
     ) -> None:
         self._cwd = cwd
         self._conversation_id = conversation_id
@@ -63,6 +64,7 @@ class AntigravityAgentGateway:
         self._api_key = api_key
         self._on_event = on_event
         self._plan_seed = plan_seed
+        self._strict_autonomy = strict_autonomy
         self._resume_degraded = False
         self._agent: Agent | None = None
 
@@ -79,6 +81,7 @@ class AntigravityAgentGateway:
             add_dirs=self._add_dirs,
             system_prompt_append=self._system_prompt_append,
             api_key=self._api_key,
+            strict_autonomy=self._strict_autonomy,
         )
 
     async def _reconnect(self) -> None:

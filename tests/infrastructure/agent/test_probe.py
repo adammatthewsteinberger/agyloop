@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 from google.antigravity.types import BuiltinTools
 
+from agyloop.infrastructure.agent.options import build_local_config
 from agyloop.infrastructure.agent.probe import (
     AntigravityCapacityProbe,
     build_probe_config,
@@ -51,6 +52,16 @@ def test_probe_config_uses_none_or_read_only_tools() -> None:
     assert set(tools) <= allowed
     assert BuiltinTools.RUN_COMMAND not in tools
     assert cfg.mcp_servers in (None, [])
+
+
+def test_live_config_pins_empty_mcp_servers_like_probe() -> None:
+    """Live SDK session must pin mcp_servers=[] the same as probe (no MCP OAuth)."""
+    probe = build_probe_config(cwd=".")
+    live = build_local_config(cwd=".")
+    assert "mcp_servers" in probe.model_fields_set
+    assert probe.mcp_servers == []
+    assert "mcp_servers" in live.model_fields_set
+    assert live.mcp_servers == []
 
 
 @pytest.fixture

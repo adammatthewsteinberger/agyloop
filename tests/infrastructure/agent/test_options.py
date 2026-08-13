@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 
 from google.antigravity.hooks import policy
-from google.antigravity.types import CustomSystemInstructions
+from google.antigravity.types import BuiltinTools, CustomSystemInstructions
 from google.antigravity.utils.interactive import AskQuestionHook, ToolConfirmationHook
 
 from agyloop.domain.completion import DEFAULT_DONE_MARKER
@@ -14,6 +14,17 @@ from agyloop.infrastructure.agent.policies import (
     config_has_allow_all,
     config_has_nonblocking_policies,
 )
+
+
+def test_local_config_pins_empty_mcp_servers() -> None:
+    cfg = build_local_config(cwd=".")
+    assert "mcp_servers" in cfg.model_fields_set
+    assert cfg.mcp_servers == []
+
+
+def test_strict_autonomy_disables_ask_question_tool() -> None:
+    cfg = build_local_config(cwd=".", strict_autonomy=True)
+    assert BuiltinTools.ASK_QUESTION in (cfg.capabilities.disabled_tools or [])
 
 
 def test_local_config_is_autonomous():

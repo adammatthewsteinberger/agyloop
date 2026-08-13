@@ -14,9 +14,17 @@ from google.antigravity.utils.interactive import AskQuestionHook, ToolConfirmati
 from agyloop.infrastructure.agent.autonomy import (
     ASK_QUESTION_DENY_MESSAGE,
     DenyAskQuestionHook,
+    DenyAskQuestionInteractionHook,
     autonomy_hooks,
 )
 from agyloop.infrastructure.agent.options import build_local_config
+
+
+def test_strict_autonomy_keeps_deny_with_guidance() -> None:
+    cfg = build_local_config(cwd=".", strict_autonomy=True)
+    assert BuiltinTools.ASK_QUESTION in (cfg.capabilities.disabled_tools or [])
+    assert any(isinstance(hook, DenyAskQuestionHook) for hook in cfg.hooks)
+    assert any(isinstance(hook, DenyAskQuestionInteractionHook) for hook in cfg.hooks)
 
 
 async def test_ask_question_denied_with_guidance() -> None:
