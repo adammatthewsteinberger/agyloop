@@ -207,6 +207,52 @@ def test_rpm_message_without_metric_is_window() -> None:
     assert state.rate_limit_type == "rpm"
 
 
+def test_tpm_and_ipm_from_message() -> None:
+    tpm = classify(
+        TurnSignals(
+            http_status=429,
+            status="RESOURCE_EXHAUSTED",
+            message="tokens per minute quota exceeded",
+        )
+    )
+    assert isinstance(tpm, WindowExhausted)
+    assert tpm.rate_limit_type == "tpm"
+    ipm = classify(
+        TurnSignals(
+            http_status=429,
+            status="RESOURCE_EXHAUSTED",
+            message="images per minute quota exceeded",
+        )
+    )
+    assert isinstance(ipm, WindowExhausted)
+    assert ipm.rate_limit_type == "ipm"
+
+
+def test_unknown_quota_metric_falls_through_to_unknown_window() -> None:
+    state = classify(
+        TurnSignals(
+            http_status=429,
+            status="RESOURCE_EXHAUSTED",
+            quota_metric="something-else",
+        )
+    )
+    assert isinstance(state, WindowExhausted)
+    assert state.rate_limit_type == "unknown"
+
+
+def test_spend_can_purchase_passthrough() -> None:
+    state = classify(
+        TurnSignals(
+            http_status=429,
+            status="RESOURCE_EXHAUSTED",
+            message="spend-based rate limit",
+            can_purchase=False,
+        )
+    )
+    assert isinstance(state, CreditsExhausted)
+    assert state.can_purchase is False
+
+
 def test_daily_quota_message_is_rpd(fake_now) -> None:
     state = classify(
         TurnSignals(

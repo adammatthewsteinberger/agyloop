@@ -71,4 +71,4 @@ def is_waitable(state: CapacityState) -> bool:
         return False
     if isinstance(state, (Available, TransientThrottle, WindowExhausted, CreditsExhausted)):
         return True
-    assert_never(state)
+    assert_never(state)  # pragma: no cover — CapacityState is a closed union

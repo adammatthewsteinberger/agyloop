@@ -81,6 +81,7 @@ class TurnSignals:
     quota_violations: tuple[QuotaViolation, ...] = ()
     tool_error_messages: tuple[str, ...] = ()
     finish_reason: str | None = None
+    can_purchase: bool | None = None
 
 
 def _status(signals: TurnSignals) -> str:
@@ -181,7 +182,8 @@ def classify(signals: TurnSignals, now: datetime | None = None) -> CapacityState
     # not a 10-minute WindowExhausted. Checked before window construction so a
     # billing marker can never produce a state carrying resets_at.
     if spend:
-        return CreditsExhausted(detail=message)
+        purchase = True if signals.can_purchase is None else signals.can_purchase
+        return CreditsExhausted(detail=message, can_purchase=purchase)
 
     # quota_metric is a structured field (brief) — treat like quotaId.
     metric_kind = _window_kind_from_token(signals.quota_metric)

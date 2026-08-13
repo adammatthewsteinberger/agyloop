@@ -256,6 +256,10 @@ def test_adaptive_wait_policy_delegates_to_next_probe_instant() -> None:
     assert policy.next_probe_instant(
         state, now=NOW, started_waiting_at=NOW, probe_count=0
     ) == next_probe_instant(state, now=NOW, started_waiting_at=NOW, probe_count=0)
+    config = WaitPolicyConfig(max_wait=timedelta(hours=1))
+    bounded = AdaptiveWaitPolicy(config)
+    assert bounded.wait_exceeded(started_waiting_at=NOW, now=NOW) is False
+    assert bounded.wait_exceeded(started_waiting_at=NOW, now=NOW + timedelta(hours=1)) is True
 
 
 def test_available_state_still_produces_an_instant_not_in_the_past() -> None:
@@ -349,3 +353,72 @@ def test_property_never_proposes_instant_beyond_max_wait(max_wait_s: int) -> Non
         config=config,
     )
     assert at <= NOW + timedelta(seconds=max_wait_s)
+
+
+def test_config_rejects_nonpositive_rpd_and_throttle() -> None:
+    with pytest.raises(ValueError, match="rpd_probe_interval"):
+        WaitPolicyConfig(rpd_probe_interval=timedelta(0))
+    with pytest.raises(ValueError, match="throttle_probe_interval"):
+        WaitPolicyConfig(throttle_probe_interval=timedelta(0))
+    with pytest.raises(ValueError, match="throttle_probe_ceiling"):
+        WaitPolicyConfig(
+            throttle_probe_interval=timedelta(seconds=10),
+            throttle_probe_ceiling=timedelta(seconds=1),
+        )
+    with pytest.raises(ValueError, match="throttle_backoff_factor"):
+        WaitPolicyConfig(throttle_backoff_factor=0.5)
+
+
+def test_rpd_without_resets_at_uses_interval() -> None:
+    config = WaitPolicyConfig(rpd_probe_interval=timedelta(minutes=15))
+    at = next_probe_instant(
+        WindowExhausted(rate_limit_type="rpd", resets_at=None),
+        now=NOW,
+        started_waiting_at=NOW,
+        probe_count=0,
+        config=config,
+    )
+    assert at == NOW + timedelta(minutes=15)
+
+
+def test_progress_wait_backoff_and_validation() -> None:
+    from agyloop.domain.completion import Continue
+    from agyloop.domain.loop import decide_progress_delay
+    from agyloop.domain.waiting import (
+        ProgressWaitConfig,
+        is_wait_only_remaining_work,
+        next_progress_wait_instant,
+    )
+
+    assert is_wait_only_remaining_work(())
+    assert is_wait_only_remaining_work(("Wait for E2E suite", "still running flow 1"))
+    assert not is_wait_only_remaining_work(("Fix the login button",))
+
+    cfg = ProgressWaitConfig(initial_seconds=30, factor=2.0, ceiling_seconds=300)
+    assert (next_progress_wait_instant(now=NOW, streak=0, config=cfg) - NOW).total_seconds() == 30
+    assert (next_progress_wait_instant(now=NOW, streak=10, config=cfg) - NOW).total_seconds() == 300
+    with pytest.raises(ValueError, match="initial_seconds"):
+        ProgressWaitConfig(initial_seconds=0)
+    with pytest.raises(ValueError, match="factor"):
+        ProgressWaitConfig(factor=0.5)
+    with pytest.raises(ValueError, match="ceiling_seconds"):
+        ProgressWaitConfig(initial_seconds=60, ceiling_seconds=30)
+    with pytest.raises(ValueError, match="streak"):
+        next_progress_wait_instant(now=NOW, streak=-1)
+    assert (
+        decide_progress_delay(
+            verdict=Continue(remaining_work=("Waiting for suite",)),
+            tree_changed=True,
+            now=NOW,
+            streak=0,
+        )
+        is None
+    )
+    delay = decide_progress_delay(
+        verdict=Continue(remaining_work=("Waiting for suite",)),
+        tree_changed=False,
+        now=NOW,
+        streak=0,
+    )
+    assert delay is not None
+    assert (delay.at - NOW).total_seconds() == 30

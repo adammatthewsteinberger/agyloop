@@ -7,6 +7,14 @@ class AgyloopError(Exception):
     """Base class for every error raised by agyloop's own logic."""
 
 
+class InvalidPlanError(AgyloopError):
+    """Raised when a work plan file cannot be parsed into work items."""
+
+
+class InvalidSessionSelectorError(AgyloopError):
+    """Raised when a session selector is malformed or ambiguous."""
+
+
 class BudgetExceededError(AgyloopError):
     """Raised when a run exceeds its configured turn, token, or estimate budget."""
 
