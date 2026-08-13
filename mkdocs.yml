@@ -88,5 +88,8 @@ nav:
           - "0012 — Versioned classifier fixtures": architecture/decisions/0012-classifier-patterns-are-versioned.md
           - "0015 — Generated REST with drift gate": architecture/decisions/0015-generated-gemini-rest-with-drift-gate.md
   - Contributing:
+      - Development: contributing/development.md
+      - Release process: contributing/release-process.md
       - Harness patch: contributing/harness-patch.md
+  - Changelog: https://github.com/adammatthewsteinberger/agyloop/blob/main/CHANGELOG.md
   - Security: security.md

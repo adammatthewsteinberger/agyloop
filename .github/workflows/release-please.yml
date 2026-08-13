@@ -1,0 +1,25 @@
+name: release-please
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v5
+        with:
+          # Repo default branch is develop (gitflow integration), but
+          # release-please must open its release PR against main.
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json

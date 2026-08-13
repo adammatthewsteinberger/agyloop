@@ -29,9 +29,10 @@ hand it a plan and walk away.
 
 ## Project status
 
-Pre-1.0. The core loop, resilient waiting, CLI gateway, git savepoints,
-generated Developer REST CLI, and this documentation site are in tree.
+Public **0.1.0**. Install from [PyPI](https://pypi.org/project/agyloop/).
+The core loop, resilient waiting, CLI gateway, git savepoints, generated
+Developer REST CLI, and this documentation site ship in that release.
 
 ## License
 
-MIT.
+MIT. See [Contributing](contributing/development.md) to work on the code.

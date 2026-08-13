@@ -1,5 +1,11 @@
 # agyloop
 
+[![CI](https://github.com/adammatthewsteinberger/agyloop/actions/workflows/ci.yml/badge.svg)](https://github.com/adammatthewsteinberger/agyloop/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/agyloop)](https://pypi.org/project/agyloop/)
+[![Python versions](https://img.shields.io/pypi/pyversions/agyloop)](https://pypi.org/project/agyloop/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/adammatthewsteinberger/agyloop/blob/main/LICENSE)
+[![Docs](https://img.shields.io/badge/docs-github.io-teal)](https://adammatthewsteinberger.github.io/agyloop/)
+
 Autonomous Google Antigravity / Gemini session runner. Same job as
 [claudeloop](https://github.com/adammatthewsteinberger/claudeloop): never
 block on a human, and never treat billing / daily-quota exhaustion as a
@@ -7,23 +13,23 @@ short waitable RPM/TPM blip.
 
 ## Install
 
-Python 3.12+. From a clone:
+Python 3.12+.
 
 ```bash
-pipx install .
-agyloop --help
+pip install agyloop
+pipx install agyloop
 ```
 
-Or editable for development:
+TestPyPI (contributor dry run; runtime deps still come from PyPI):
 
 ```bash
-uv sync --extra dev
-uv run agyloop --help
+pip install -i https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple/ agyloop
 ```
 
 Auth is **either** `GOOGLE_API_KEY` (Gemini Developer API) **or** Application
 Default Credentials with a Vertex/Enterprise flag. `agyloop doctor` reports
-the lane; it never guesses. See [docs/usage.md](docs/usage.md).
+the lane; it never guesses. See the
+[usage guide](https://adammatthewsteinberger.github.io/agyloop/usage/).
 
 ## Quickstart
 
@@ -42,7 +48,8 @@ agyloop snapshot
 agyloop api --help
 ```
 
-Generated Gemini REST is `agyloop api` ([ADR 0015](docs/architecture/decisions/0015-generated-gemini-rest-with-drift-gate.md)).
+Generated Gemini REST is `agyloop api`
+([ADR 0015](https://adammatthewsteinberger.github.io/agyloop/architecture/decisions/0015-generated-gemini-rest-with-drift-gate/)).
 Pace cold Enterprise runs with `--ramp N`. Drive a live `agy` binary with
 `--gateway cli`.
 
@@ -59,13 +66,13 @@ A `429 RESOURCE_EXHAUSTED` is not one thing:
 
 `--no-probe` waits only to computed quota boundaries and issues zero probe
 requests. `--max-turns`, `--max-wait`, and `--max-tokens` bound a run.
-Details: [docs/usage.md](docs/usage.md#capacity).
+Details: [usage](https://adammatthewsteinberger.github.io/agyloop/usage/).
 
 ## Never block on a human
 
 `ask_question` is denied with guidance. Interactive SDK hooks are never
 registered. Operator `stop` / `prompt` write the run inbox; they do not wait
-on stdin. See [SECURITY.md](SECURITY.md).
+on stdin. See [SECURITY.md](https://github.com/adammatthewsteinberger/agyloop/blob/main/SECURITY.md).
 
 ## Permissions
 
@@ -73,11 +80,10 @@ Default SDK path: `allow_all()` + workspace scope + destructive-command
 denies. `--safe` limits tools; `--yolo` drops workspace/destructive scopes.
 
 `--unsafe-skip-permissions` is a **CLI-adapter argv** opt-in for
-`agy --dangerously-skip-permissions` (`build_agy_argv`). `agyloop run`
-(`--gateway sdk`, the default) **refuses** the flag. `--gateway cli` honors it
-after the usual gates. The argv builder refuses root, refuses combining with
-`--sandbox`, and refuses a non-git cwd. agyloop never emits that flag together
-with `--sandbox` ([antigravity-cli#36](https://github.com/google-antigravity/antigravity-cli/issues/36)).
+`agy --dangerously-skip-permissions`. `agyloop run` (`--gateway sdk`, the
+default) **refuses** the flag. `--gateway cli` honors it after the usual
+gates. agyloop never emits that flag together with `--sandbox`
+([antigravity-cli#36](https://github.com/google-antigravity/antigravity-cli/issues/36)).
 
 ## Tests
 
@@ -86,16 +92,17 @@ pytest                          # skips system/live
 pytest -m system                # real FS/git/control + scripted agent; no Google account
 ```
 
-## Plans
+## Links
 
-| Document | Purpose |
+| Document | URL |
 |---|---|
-| [docs/usage.md](docs/usage.md) | Run / resume / doctor / auth / capacity |
-| [SECURITY.md](SECURITY.md) | Sandbox footgun, never-block, reporting |
-| [docs/plans/architecture-and-roadmap.md](docs/plans/architecture-and-roadmap.md) | Design / transplant plan from claudeloop |
-| [docs/plans/research-notes.md](docs/plans/research-notes.md) | Vendor SDK/CLI capacity + autonomy research |
-| [docs/architecture/decisions/0006-defer-genai-rest.md](docs/architecture/decisions/0006-defer-genai-rest.md) | Original REST deferral (superseded) |
-| [docs/architecture/decisions/0015-generated-gemini-rest-with-drift-gate.md](docs/architecture/decisions/0015-generated-gemini-rest-with-drift-gate.md) | Why `agyloop api` ships with a drift gate |
+| Documentation | https://adammatthewsteinberger.github.io/agyloop/ |
+| Installation | https://adammatthewsteinberger.github.io/agyloop/getting-started/installation/ |
+| Contributing | https://github.com/adammatthewsteinberger/agyloop/blob/main/CONTRIBUTING.md |
+| Changelog | https://github.com/adammatthewsteinberger/agyloop/blob/main/CHANGELOG.md |
+| Security | https://github.com/adammatthewsteinberger/agyloop/blob/main/SECURITY.md |
+| Source | https://github.com/adammatthewsteinberger/agyloop |
+| PyPI | https://pypi.org/project/agyloop/ |
 
 ## Naming
 
