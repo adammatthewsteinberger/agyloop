@@ -285,6 +285,35 @@ def test_cancelled_exception_is_not_capacity() -> None:
     assert isinstance(state, Available)
 
 
+def test_context_canceled_by_manage_task_is_not_throttle() -> None:
+    from agyloop.domain.classify import classify_explained
+
+    result = classify_explained(
+        TurnSignals(
+            exception_type="AntigravityExecutionError",
+            message="429 RESOURCE_EXHAUSTED context canceled by manage_task",
+            http_status=429,
+            status="RESOURCE_EXHAUSTED",
+        )
+    )
+    assert isinstance(result.state, Available)
+    assert result.rung == "operator_cancel"
+
+
+def test_bare_canceled_is_not_operator_cancel() -> None:
+    from agyloop.domain.classify import classify_explained
+
+    result = classify_explained(
+        TurnSignals(
+            http_status=429,
+            status="RESOURCE_EXHAUSTED",
+            message="request canceled",
+        )
+    )
+    assert isinstance(result.state, WindowExhausted)
+    assert result.rung != "operator_cancel"
+
+
 def test_credits_exhausted_has_no_resets_at() -> None:
     state = classify(
         TurnSignals(

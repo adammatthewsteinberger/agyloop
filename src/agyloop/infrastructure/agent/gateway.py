@@ -20,7 +20,7 @@ from google.antigravity.types import (
 )
 
 from agyloop.application.dto import TurnOutcome
-from agyloop.domain.classify import TurnSignals
+from agyloop.domain.classify import TurnSignals, looks_like_operator_cancel
 from agyloop.domain.errors import AgentConfigError
 from agyloop.domain.model_profile import ModelEffortProfile
 from agyloop.domain.permission import (
@@ -28,6 +28,11 @@ from agyloop.domain.permission import (
     UserPermissionMode,
     parse_user_permission_mode,
 )
+from agyloop.infrastructure.agent.harness_logs import (
+    capture_harness_logs,
+    raise_if_empty_withdrawn,
+)
+from agyloop.infrastructure.agent.harness_retarget import prepare_harness
 from agyloop.infrastructure.agent.options import build_local_config
 from agyloop.infrastructure.agent.translate import (
     outcome_from_exception,
@@ -144,6 +149,7 @@ class AntigravityAgentGateway:
 
     async def _ensure_started(self) -> Agent:
         if self._agent is None:
+            prepare_harness()
             agent = Agent(self._config())
             self._agent = await agent.__aenter__()
         return self._agent
@@ -153,14 +159,19 @@ class AntigravityAgentGateway:
         agent: Agent | None = None
         try:
             agent = await self._ensure_started()
-            response = await agent.chat(prompt_text)
-            output_text = await response.text()
+            with capture_harness_logs() as logs:
+                response = await agent.chat(prompt_text)
+                output_text = await response.text()
             structured = await response.structured_output()
             session_id = agent.conversation_id
             if isinstance(session_id, str) and session_id:
                 self._conversation_id = session_id
+            raise_if_empty_withdrawn(output_text=output_text, logs=logs)
+            signals = TurnSignals()
+            if looks_like_operator_cancel(output_text):
+                signals = TurnSignals(message=output_text, exception_message=output_text)
             outcome = TurnOutcome(
-                signals=TurnSignals(),
+                signals=signals,
                 verdict=verdict_from_structured(structured),
                 output_text=output_text,
                 session_id=session_id if isinstance(session_id, str) else None,

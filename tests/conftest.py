@@ -14,6 +14,17 @@ def fake_now() -> Iterator[datetime]:
         yield FROZEN_NOW
 
 
+@pytest.fixture(autouse=True)
+def _skip_harness_retarget_by_default(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Unit tests must not copy the 99MB bundled localharness into ~/.cache."""
+    monkeypatch.setenv("AGYLOOP_SKIP_HARNESS_RETARGET", "1")
+    monkeypatch.setenv("AGYLOOP_GEMINI_REWRITE_PROXY", "0")
+    yield
+    from agyloop.infrastructure.agent.harness_retarget import restore_harness
+
+    restore_harness()
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Let ``pytest -m system`` override addopts' default marker exclusion."""
     cli_markers: list[str] = []

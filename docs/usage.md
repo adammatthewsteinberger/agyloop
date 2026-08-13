@@ -67,6 +67,7 @@ conversation seeded with the persisted plan text.
 ```bash
 agyloop doctor
 agyloop doctor explain-classify --message "spend-based rate limit" --http-status 429
+agyloop doctor repair-harness
 ```
 
 Checks: auth lane and source, no interactive hooks, optional `agy` CLI on
@@ -74,6 +75,13 @@ Checks: auth lane and source, no interactive hooks, optional `agy` CLI on
 directory. A GOOGLE_API_KEY + Vertex flag conflict fails the auth check.
 It does not read live quota — use AI Studio / Cloud Console for that.
 `explain-classify` prints which classifier ladder rung fired.
+`repair-harness` restores a bundled `localharness` backup if agyloop overwrote
+site-packages (see [configuration](getting-started/configuration.md)).
+
+A withdrawn Gemini model (HTTP 404 / `NOT_FOUND` / "no longer available to new
+users") is **terminal**. Empty turns that log those markers abort instead of
+burning `--max-turns`. `run.exception` is written to the per-run
+`events.jsonl` stream.
 
 ## Mid-run control
 
@@ -105,9 +113,9 @@ agyloop savepoints                # list git refs refs/agyloop/<run_id>/<n>
 agyloop unwind --to 1             # git reset --hard; refuses while the run is active
 ```
 
-Savepoint commits use `chore(agyloop):` subjects and never add `.agyloop/` to
-the project history. Unchanged trees get a ref-only checkpoint (no empty
-commit).
+Savepoint commits use `chore(agyloop):` subjects and never add `.agyloop/` or
+`__pycache__` / `*.py[cod]` to the project history. Unchanged trees get a
+ref-only checkpoint (no empty commit).
 
 ## Generated REST
 

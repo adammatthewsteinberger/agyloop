@@ -684,6 +684,7 @@ def test_run_exception_marks_meta_failed() -> None:
         metas: list[dict[str, object]] = []
         clock = FakeClock(start=NOW)
         gateway = BoomGateway([])
+        events = FakeEventSink()
         runner = AutonomousRunner(
             agent_gateway=gateway,
             capacity_probe=FakeCapacityProbe([available_signals()]),
@@ -692,7 +693,7 @@ def test_run_exception_marks_meta_failed() -> None:
             audit_log=FakeAuditLog(),
             progress=FakeProgressReporter(),
             run_id="boom-run",
-            event_sink=FakeEventSink(),
+            event_sink=events,
             state_store=FakeStateStore(),
             session_lock=FakeSessionLock(),
             save_points=FakeSavePointStore(),
@@ -701,6 +702,11 @@ def test_run_exception_marks_meta_failed() -> None:
         with pytest.raises(RuntimeError, match="boom"):
             await runner.run(initial_prompt="start", continue_prompt="keep going")
         assert any(m.get("status") == "failed" for m in metas)
+        assert any(e[0] == "run.exception" for e in events.events)
+        event = next(e for e in events.events if e[0] == "run.exception")
+        assert event[1] is not None
+        assert event[1]["error"] == "RuntimeError"
+        assert "boom" in str(event[1]["detail"])
 
     run(body())
 
@@ -906,5 +912,37 @@ def test_ramp_zero_does_not_insert_pacing_sleeps() -> None:
         assert result.success is True
         assert sleeper.wait_log == []
         assert all(item[0] != "ramp.wait" for item in events.events)
+
+    run(body())
+
+
+def test_turn_completed_cost_usd_matches_ledger_estimate() -> None:
+    async def body() -> None:
+        runner, _gateway, audit, _progress, _sleeper, _n, events, _p = make_runner(
+            turns=[
+                ScriptedTurn(
+                    signals=available_signals(),
+                    verdict=DONE_VERDICT,
+                    cost_usd=0.0,
+                    prompt_tokens=1_000_000,
+                    completion_tokens=0,
+                )
+            ],
+            probes=[],
+            no_probe=True,
+            wait_policy=WaitPolicyConfig(no_probe=True),
+        )
+        result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+        assert result.success is True
+        completed = [payload for kind, payload in events.events if kind == "turn.completed"]
+        assert completed
+        payload = completed[0]
+        assert payload is not None
+        assert payload["cost_usd"] == pytest.approx(0.10)
+        assert payload["prompt_tokens"] == 1_000_000
+        assert payload["completion_tokens"] == 0
+        turn_audit = [item for item in audit.events if item[0] == "turn"]
+        assert turn_audit
+        assert turn_audit[0][1]["cost_usd"] == pytest.approx(0.10)
 
     run(body())

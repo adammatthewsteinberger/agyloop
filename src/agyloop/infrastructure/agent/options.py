@@ -32,6 +32,10 @@ from agyloop.infrastructure.agent.autonomy import (
     autonomy_hooks,
     build_autonomy_policies,
 )
+from agyloop.infrastructure.agent.harness_retarget import (
+    input_detection_env,
+    input_detection_models,
+)
 
 
 def _additive_system_instructions(system_prompt_append: str = "") -> TemplatedSystemInstructions:
@@ -89,6 +93,7 @@ def build_local_config(
     """
     workspace = str(Path(cwd).resolve())
     extra_dirs = [str(Path(path).resolve()) for path in (add_dirs or ())]
+    extra_models = input_detection_models(chat_model=model, api_key=api_key)
     return LocalAgentConfig(
         system_instructions=_additive_system_instructions(system_prompt_append),
         capabilities=_capabilities_for(permission_mode, strict_autonomy=strict_autonomy),
@@ -100,7 +105,9 @@ def build_local_config(
         hooks=autonomy_hooks(),
         workspaces=[workspace, *extra_dirs],
         conversation_id=conversation_id,
-        model=model,
+        model=None,
+        models=extra_models if model else None,
+        env=input_detection_env(),
         api_key=api_key,
         response_schema=COMPLETION_RESPONSE_SCHEMA,
         mcp_servers=[],

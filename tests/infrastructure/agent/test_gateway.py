@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import patch
 
 import pytest
@@ -22,12 +23,16 @@ class _FakeResponse:
         text: str = "",
         error: BaseException | None = None,
         structured: dict[str, object] | None = None,
+        log_line: str | None = None,
     ) -> None:
         self._text = text
         self._error = error
         self._structured = structured
+        self._log_line = log_line
 
     async def text(self) -> str:
+        if self._log_line is not None:
+            logging.getLogger("google.antigravity").error(self._log_line)
         if self._error is not None:
             raise self._error
         return self._text
@@ -103,6 +108,16 @@ async def test_send_turn_validation_error_is_our_bug(fake_agent: _FakeAgent) -> 
     fake_agent.response = _FakeResponse(error=AntigravityValidationError("invalid config field"))
     gateway = AntigravityAgentGateway(cwd=".")
     with pytest.raises(AgentConfigError):
+        await gateway.send_turn("go")
+    await gateway.close()
+
+
+async def test_send_turn_404_is_config_error(fake_agent: _FakeAgent) -> None:
+    fake_agent.response = _FakeResponse(
+        error=AntigravityExecutionError("404 NOT_FOUND: model is no longer available to new users")
+    )
+    gateway = AntigravityAgentGateway(cwd=".")
+    with pytest.raises(AgentConfigError, match="404|NOT_FOUND|withdrawn"):
         await gateway.send_turn("go")
     await gateway.close()
 
@@ -322,3 +337,22 @@ async def test_resume_degrades_when_chat_validation_error_is_conversation_failur
     assert agents[1].config.conversation_id is None
     assert "- [ ] finish the plan" in agents[1].prompts[0]
     assert outcome.output_text == "seeded"
+
+
+_WITHDRAWN_LOG = "404 NOT_FOUND models/gemini-2.5-flash-lite is no longer available to new users"
+
+
+async def test_empty_output_with_harness_404_is_config_error(fake_agent: _FakeAgent) -> None:
+    fake_agent.response = _FakeResponse(text="", log_line=_WITHDRAWN_LOG)
+    gateway = AntigravityAgentGateway(cwd=".")
+    with pytest.raises(AgentConfigError, match="withdrawn|404|NOT_FOUND"):
+        await gateway.send_turn("go")
+    await gateway.close()
+
+
+async def test_nonempty_output_ignores_sidecar_404_noise(fake_agent: _FakeAgent) -> None:
+    fake_agent.response = _FakeResponse(text="Finished the parser.", log_line=_WITHDRAWN_LOG)
+    gateway = AntigravityAgentGateway(cwd=".")
+    outcome = await gateway.send_turn("go")
+    await gateway.close()
+    assert outcome.output_text == "Finished the parser."

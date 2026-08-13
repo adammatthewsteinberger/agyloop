@@ -46,6 +46,18 @@ _TPM_MESSAGE = re.compile(r"\b(?:tokens per minute|tpm)\b", re.IGNORECASE)
 _IPM_MESSAGE = re.compile(r"\b(?:images per minute|ipm)\b", re.IGNORECASE)
 _RPM_MESSAGE = re.compile(r"\b(?:requests per minute|rpm)\b", re.IGNORECASE)
 
+# Operator cancel in message/output. Do not match a bare "canceled".
+_OPERATOR_CANCEL_MARKERS = (
+    "context canceled",
+    "context cancelled",
+    "manage_task",
+)
+
+_WITHDRAWN_PHRASE = "no longer available to new users"
+_HTTP_NOT_FOUND = re.compile(r"\b404\b")
+_RPC_NOT_FOUND = re.compile(r"\bNOT_FOUND\b")
+WITHDRAWN_INPUT_DETECTION_MODEL = "gemini-2.5-flash-lite"
+
 
 def _current_time() -> datetime:
     return datetime.now(UTC)
@@ -98,6 +110,25 @@ def looks_like_spend_limit(text: str | None) -> bool:
         return False
     lowered = text.casefold()
     return any(marker in lowered for marker in _SPEND_MARKERS)
+
+
+def looks_like_operator_cancel(text: str | None) -> bool:
+    """True when copy names a programmatic cancel, not a bare ``canceled``."""
+    if not text:
+        return False
+    lowered = text.casefold()
+    return any(marker in lowered for marker in _OPERATOR_CANCEL_MARKERS)
+
+
+def looks_like_withdrawn_model(text: str | None) -> bool:
+    """True when copy is a 404 / NOT_FOUND / withdrawn-model failure."""
+    if not text:
+        return False
+    if _WITHDRAWN_PHRASE in text.casefold():
+        return True
+    if _HTTP_NOT_FOUND.search(text) is not None:
+        return True
+    return _RPC_NOT_FOUND.search(text) is not None
 
 
 def _compact(value: str) -> str:
@@ -168,8 +199,12 @@ def classify_explained(signals: TurnSignals, now: datetime | None = None) -> Cla
     message = _message(signals)
     http_status = signals.http_status
 
-    # Operator/programmatic cancel is not a capacity signal (F7).
+    # Operator/programmatic cancel is not a capacity signal (F7). Message
+    # markers run before the throttle ladder so a 429 plus manage_task cancel
+    # cannot become TransientThrottle.
     if signals.exception_type and "cancelled" in signals.exception_type.casefold():
+        return Classification(Available(), "operator_cancel")
+    if looks_like_operator_cancel(message) or looks_like_operator_cancel(signals.exception_message):
         return Classification(Available(), "operator_cancel")
 
     # 1. Auth first. Terminal. Never retried.

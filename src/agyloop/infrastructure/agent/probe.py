@@ -23,6 +23,15 @@ from agyloop.application.dto import TurnOutcome
 from agyloop.domain.classify import TurnSignals
 from agyloop.domain.errors import AgentConfigError
 from agyloop.infrastructure.agent.autonomy import autonomy_hooks, build_autonomy_policies
+from agyloop.infrastructure.agent.harness_logs import (
+    capture_harness_logs,
+    raise_if_empty_withdrawn,
+)
+from agyloop.infrastructure.agent.harness_retarget import (
+    input_detection_env,
+    input_detection_models,
+    prepare_harness,
+)
 from agyloop.infrastructure.agent.translate import (
     outcome_from_exception,
     partial_text_from_response,
@@ -39,6 +48,7 @@ def build_probe_config(
     api_key: str | None = None,
 ) -> LocalAgentConfig:
     workspace = str(Path(cwd).resolve())
+    extra_models = input_detection_models(chat_model=model, api_key=api_key)
     return LocalAgentConfig(
         system_instructions=PROBE_PROMPT,
         capabilities=CapabilitiesConfig(enabled_tools=BuiltinTools.none()),
@@ -46,7 +56,9 @@ def build_probe_config(
         hooks=autonomy_hooks(),
         workspaces=[workspace],
         conversation_id=None,
-        model=model,
+        model=None,
+        models=extra_models if model else None,
+        env=input_detection_env(),
         api_key=api_key,
         mcp_servers=[],
     )
@@ -70,13 +82,16 @@ class AntigravityCapacityProbe:
         self._model = model
 
     async def probe(self) -> TurnOutcome:
+        prepare_harness()
         agent = Agent(build_probe_config(cwd=self._cwd, model=self._model, api_key=self._api_key))
         session = await agent.__aenter__()
         response: ChatResponse | None = None
         try:
-            response = await session.chat(PROBE_PROMPT)
-            output_text = await response.text()
+            with capture_harness_logs() as logs:
+                response = await session.chat(PROBE_PROMPT)
+                output_text = await response.text()
             structured = await response.structured_output()
+            raise_if_empty_withdrawn(output_text=output_text, logs=logs)
             return TurnOutcome(
                 signals=TurnSignals(),
                 verdict=verdict_from_structured(structured),

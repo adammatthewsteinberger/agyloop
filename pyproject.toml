@@ -39,9 +39,11 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/adammatthewsteinberger/agyloop"
+Homepage = "https://adammatthewsteinberger.github.io/agyloop/"
+Documentation = "https://adammatthewsteinberger.github.io/agyloop/"
 Repository = "https://github.com/adammatthewsteinberger/agyloop"
 Issues = "https://github.com/adammatthewsteinberger/agyloop/issues"
+Changelog = "https://github.com/adammatthewsteinberger/agyloop/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [

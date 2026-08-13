@@ -38,6 +38,14 @@ class GitSavePointStore:
         # Never commit control-plane state into the project history, even when
         # a host repo forgot to gitignore `.agyloop/`.
         self._run(["git", "reset", "-q", "--", _CONTROL_PLANE_DIR], check=False)
+        staged = self._staged_paths()
+        bytecode = [
+            path
+            for path in staged
+            if "__pycache__" in Path(path).parts or Path(path).suffix in {".pyc", ".pyo", ".pyd"}
+        ]
+        if bytecode:
+            self._run(["git", "reset", "-q", "--", *bytecode], check=False)
         # Only commit when the index differs from HEAD. Unchanged trees still
         # get a numbered refs/agyloop/<run_id>/<n> pointing at current HEAD
         # — no empty commits on wait/poll turns.

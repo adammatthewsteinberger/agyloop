@@ -48,6 +48,8 @@ class ScriptedTurn:
     output_text: str = ""
     session_id: str | None = "fake-session-id"
     cost_usd: float = 0.0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
     raw_events: tuple[dict[str, object], ...] = ()
 
 
@@ -91,6 +93,8 @@ class FakeAgentGateway:
             output_text=turn.output_text,
             session_id=turn.session_id,
             cost_usd=turn.cost_usd,
+            prompt_tokens=turn.prompt_tokens,
+            completion_tokens=turn.completion_tokens,
             raw_events=turn.raw_events,
         )
 

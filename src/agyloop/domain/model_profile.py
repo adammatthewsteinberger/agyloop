@@ -19,6 +19,10 @@ DEFAULT_MODEL_LOW = "gemini-flash-lite-latest"
 DEFAULT_MODEL_MEDIUM = "gemini-2.5-flash"
 DEFAULT_MODEL_HIGH = "gemini-2.5-pro"
 
+# Harness input-detection sidecar. Keep in lockstep with the low preset so a
+# withdrawn flash-lite id cannot drift independently of ``--preset low``.
+INPUT_DETECTION_MODEL = DEFAULT_MODEL_LOW
+
 PRESET_DEFAULT_EFFORT: dict[PresetName, EffortLevel] = {
     "low": "medium",
     "medium": "high",

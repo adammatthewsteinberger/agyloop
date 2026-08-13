@@ -45,6 +45,16 @@ def test_probe_config_has_no_conversation_id() -> None:
     assert cfg.conversation_id is None
 
 
+def test_probe_config_forwards_input_detection_override() -> None:
+    from agyloop.domain.model_profile import INPUT_DETECTION_MODEL
+
+    cfg = build_probe_config(cwd=".", model="gemini-2.5-flash", api_key="test-key")
+    assert cfg.env is not None
+    assert cfg.env["AGYLOOP_INPUT_DETECTION_MODEL"] == INPUT_DETECTION_MODEL
+    names = [m.name for m in (cfg.models or [])]
+    assert INPUT_DETECTION_MODEL in names
+
+
 def test_probe_config_uses_none_or_read_only_tools() -> None:
     cfg = build_probe_config(cwd=".")
     tools = list(cfg.capabilities.enabled_tools or ())

@@ -45,6 +45,7 @@ from agyloop.infrastructure.agent.cli_argv import (
 )
 from agyloop.infrastructure.agent.gateway import AntigravityAgentGateway
 from agyloop.infrastructure.agent.gateway_cli import AgyCliAgentGateway
+from agyloop.infrastructure.agent.harness_retarget import restore_site_packages_backups
 from agyloop.infrastructure.agent.probe import AntigravityCapacityProbe
 from agyloop.infrastructure.api.binder import build_api_click_group as _build_api_click_group
 from agyloop.infrastructure.config import load_config
@@ -279,9 +280,7 @@ def build_runner(
     if no_probe:
         probe = _NoOpCapacityProbe()
     else:
-        probe = AntigravityCapacityProbe(
-            cwd=str(cwd), model=config.model or model, api_key=api_key
-        )
+        probe = AntigravityCapacityProbe(cwd=str(cwd), model=config.model or model, api_key=api_key)
     wait_policy = WaitPolicyConfig(
         max_wait=timedelta(seconds=config.max_wait_seconds) if config.max_wait_seconds else None,
         no_probe=no_probe,
@@ -345,6 +344,11 @@ def build_session_catalog() -> RunRegistryCatalog:
 
 def build_doctor_environment() -> DoctorEnvironment:
     return RealDoctorEnvironment()
+
+
+def repair_harness() -> str:
+    """Restore a site-packages localharness backup created by agyloop."""
+    return restore_site_packages_backups()
 
 
 def enqueue_stop(cwd: Path, run_id: str | None = None) -> EnqueueResult:

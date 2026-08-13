@@ -158,6 +158,26 @@ def test_structured_output_none_without_marker_is_continue_never_done() -> None:
     assert not isinstance(result, Done)
 
 
+def test_404_not_found_is_agent_config_error() -> None:
+    exc = AntigravityExecutionError(
+        "404 NOT_FOUND: gemini-2.5-flash-lite is no longer available to new users"
+    )
+    try:
+        outcome_from_exception(exc)
+    except AgentConfigError as wrapped:
+        assert "404" in str(wrapped) or "NOT_FOUND" in str(wrapped)
+        assert wrapped.__cause__ is exc
+    else:
+        raise AssertionError("withdrawn-model 404 must not become TurnSignals")
+
+
+def test_signals_from_exception_recover_404_and_not_found() -> None:
+    exc = AntigravityExecutionError("404 NOT_FOUND models/gemini-2.5-flash-lite")
+    signals = signals_from_exception(exc)
+    assert signals.http_status == 404
+    assert (signals.status or signals.google_status) == "NOT_FOUND"
+
+
 def test_chunks_with_structured_complete_evaluate_to_done() -> None:
     outcome = outcome_from_chunks(
         [Text(step_index=1, text="shipped")],
