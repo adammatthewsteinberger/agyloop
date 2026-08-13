@@ -101,7 +101,7 @@ def evaluate(
     A missing verdict is never Done.
     """
     if structured is not None:
-        if structured.blocked_on:
+        if structured.blocked_on is not None:
             return Blocked(reason=structured.blocked_on)
         if structured.complete:
             return Done(summary=structured.summary)

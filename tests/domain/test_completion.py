@@ -36,6 +36,11 @@ def test_structured_blocked_outranks_complete_flag() -> None:
     assert evaluate(structured=v, output_text="") == Blocked(reason="waiting on MCP auth")
 
 
+def test_structured_empty_blocked_on_outranks_complete_flag() -> None:
+    v = StructuredVerdict(complete=True, blocked_on="")
+    assert evaluate(structured=v, output_text="") == Blocked(reason="")
+
+
 def test_structured_incomplete_outranks_marker_in_text() -> None:
     v = StructuredVerdict(complete=False, remaining_work=("still going",))
     result = evaluate(structured=v, output_text="AGYLOOP_TASK_FULLY_COMPLETE")

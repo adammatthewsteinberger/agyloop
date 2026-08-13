@@ -83,6 +83,25 @@ def test_local_config_wires_response_schema() -> None:
     assert fields >= {"complete", "remaining_work", "blocked_on", "summary"}
 
 
+def test_completion_schema_declares_strict_field_types() -> None:
+    cfg = build_local_config(cwd=".")
+    schema = cfg.response_schema
+    if isinstance(schema, str):
+        schema = json.loads(schema)
+    assert isinstance(schema, dict)
+    properties = schema["properties"]
+    assert isinstance(properties, dict)
+    assert properties["complete"] == {
+        "type": "boolean",
+        "description": "True only when the entire task is finished.",
+    }
+    assert properties["remaining_work"]["items"] == {"type": "string"}
+    assert properties["blocked_on"]["type"] == ["string", "null"]
+    assert properties["summary"]["type"] == "string"
+    assert set(schema["required"]) == set(properties)
+    assert schema["additionalProperties"] is False
+
+
 def test_safe_mode_still_wires_finish_tool_schema() -> None:
     cfg = build_local_config(cwd=".", permission_mode="safe")
     assert cfg.capabilities.finish_tool_schema_json is not None

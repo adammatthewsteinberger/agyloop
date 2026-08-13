@@ -72,21 +72,28 @@ def outcome_from_exception(
 def verdict_from_structured(blob: object) -> StructuredVerdict | None:
     if not isinstance(blob, dict):
         return None
-    if "complete" not in blob:
+    expected_fields = {"complete", "remaining_work", "blocked_on", "summary"}
+    if set(blob) != expected_fields:
         return None
+
+    complete = blob["complete"]
     raw_remaining = blob.get("remaining_work")
-    remaining: tuple[str, ...]
-    if isinstance(raw_remaining, list):
-        remaining = tuple(str(item) for item in raw_remaining)
-    else:
-        remaining = ()
     raw_blocked = blob.get("blocked_on")
-    blocked_on = str(raw_blocked) if raw_blocked is not None else None
+    summary = blob["summary"]
+    if (
+        type(complete) is not bool
+        or not isinstance(raw_remaining, list)
+        or not all(isinstance(item, str) for item in raw_remaining)
+        or (raw_blocked is not None and not isinstance(raw_blocked, str))
+        or not isinstance(summary, str)
+    ):
+        return None
+
     return StructuredVerdict(
-        complete=bool(blob.get("complete", False)),
-        remaining_work=remaining,
-        blocked_on=blocked_on,
-        summary=str(blob.get("summary", "")),
+        complete=complete,
+        remaining_work=tuple(raw_remaining),
+        blocked_on=raw_blocked,
+        summary=summary,
     )
 
 

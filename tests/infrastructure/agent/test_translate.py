@@ -121,6 +121,19 @@ def test_structured_output_blocked_on_outranks_complete() -> None:
     assert result == Blocked(reason="waiting on MCP OAuth")
 
 
+def test_malformed_complete_string_is_continue_never_done() -> None:
+    blob = {
+        "complete": "false",
+        "remaining_work": [],
+        "blocked_on": None,
+        "summary": "not actually complete",
+    }
+    assert verdict_from_structured(blob) is None
+    result = _evaluate_structured(blob)
+    assert isinstance(result, Continue)
+    assert not isinstance(result, Done)
+
+
 def test_structured_output_none_falls_back_to_marker() -> None:
     result = _evaluate_structured(None, output_text="wrapping up\nAGYLOOP_TASK_FULLY_COMPLETE\n")
     assert result == Done(summary="")
