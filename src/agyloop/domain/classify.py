@@ -1,0 +1,212 @@
+"""Pure classification of Gemini turn signals into a CapacityState.
+
+There is no typed rate-limit event (F7). Classification is an inference
+ladder over whatever structured fields the adapter recovered, with
+versioned message markers as a fallback. Ambiguity defaults to a bounded
+probe (WindowExhausted unknown), never to Available.
+"""
+
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+
+from agyloop.domain.capacity import (
+    AuthenticationFailed,
+    Available,
+    CapacityState,
+    CreditsExhausted,
+    TransientThrottle,
+    WindowExhausted,
+)
+from agyloop.domain.waiting import next_pacific_midnight
+
+_AUTH_STATUSES = frozenset({"UNAUTHENTICATED", "PERMISSION_DENIED"})
+
+# Versioned spend/billing markers. A pattern that stops matching must fail a
+# test rather than silently reclassify a billing wall as a waitable window.
+_SPEND_MARKERS = (
+    "spend-based rate limit",
+    "spend-based",
+    "spend limit",
+    "billing cap",
+    "no balance",
+    "usage-credits",
+    "purchase more credits",
+    "out of extra usage",
+    "hard exhaustion",
+)
+
+_DAILY_MESSAGE = re.compile(
+    r"\b(?:requests per day|daily quota|per day|rpd)\b",
+    re.IGNORECASE,
+)
+_TPM_MESSAGE = re.compile(r"\b(?:tokens per minute|tpm)\b", re.IGNORECASE)
+_IPM_MESSAGE = re.compile(r"\b(?:images per minute|ipm)\b", re.IGNORECASE)
+_RPM_MESSAGE = re.compile(r"\b(?:requests per minute|rpm)\b", re.IGNORECASE)
+
+
+def _current_time() -> datetime:
+    return datetime.now(UTC)
+
+
+@dataclass(frozen=True, slots=True)
+class QuotaViolation:
+    """One google.rpc.QuotaFailure.violations[] entry recovered by the adapter."""
+
+    quota_id: str | None = None
+    quota_metric: str | None = None
+    description: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TurnSignals:
+    """Everything the classifier needs from one turn.
+
+    Assembled by the adapter, never by the domain. Extra optional fields are
+    ignored until a later task enriches them; the brief tests only require
+    http_status, status, message, and quota_metric.
+    """
+
+    http_status: int | None = None
+    status: str | None = None
+    message: str | None = None
+    quota_metric: str | None = None
+    exception_type: str | None = None
+    exception_message: str | None = None
+    google_status: str | None = None
+    error_code: str | None = None
+    retry_info_delay: timedelta | None = None
+    quota_violations: tuple[QuotaViolation, ...] = ()
+    tool_error_messages: tuple[str, ...] = ()
+    finish_reason: str | None = None
+
+
+def _status(signals: TurnSignals) -> str:
+    return (signals.status or signals.google_status or "").upper()
+
+
+def _message(signals: TurnSignals) -> str:
+    return signals.message or signals.exception_message or ""
+
+
+def looks_like_spend_limit(text: str | None) -> bool:
+    """True when copy describes a billing spend or usage-credit wall."""
+    if not text:
+        return False
+    lowered = text.casefold()
+    return any(marker in lowered for marker in _SPEND_MARKERS)
+
+
+def _compact(value: str) -> str:
+    return re.sub(r"[\s_\-:/]", "", value).casefold()
+
+
+def _window_kind_from_token(value: str | None) -> str | None:
+    if not value:
+        return None
+    compact = _compact(value)
+    if compact in {"rpd"} or "perday" in compact or "requestsperday" in compact:
+        return "rpd"
+    if compact in {"tpm"} or "tokensperminute" in compact:
+        return "tpm"
+    if compact in {"ipm"} or "imagesperminute" in compact:
+        return "ipm"
+    if compact in {"rpm"} or "perminute" in compact or "requestsperminute" in compact:
+        return "rpm"
+    return None
+
+
+def _window_kind_from_message(text: str) -> str | None:
+    if _DAILY_MESSAGE.search(text):
+        return "rpd"
+    if _TPM_MESSAGE.search(text):
+        return "tpm"
+    if _IPM_MESSAGE.search(text):
+        return "ipm"
+    if _RPM_MESSAGE.search(text):
+        return "rpm"
+    return None
+
+
+def _window_kind_from_violations(violations: tuple[QuotaViolation, ...]) -> str | None:
+    for violation in violations:
+        kind = _window_kind_from_token(violation.quota_id) or _window_kind_from_token(
+            violation.quota_metric
+        )
+        if kind is not None:
+            return kind
+    return None
+
+
+def _window(kind: str, now: datetime, quota_id: str | None = None) -> WindowExhausted:
+    resets_at = next_pacific_midnight(now) if kind == "rpd" else None
+    return WindowExhausted(rate_limit_type=kind, resets_at=resets_at, quota_id=quota_id)
+
+
+def classify(signals: TurnSignals, now: datetime | None = None) -> CapacityState:
+    instant = now if now is not None else _current_time()
+    status = _status(signals)
+    message = _message(signals)
+    http_status = signals.http_status
+
+    # Operator/programmatic cancel is not a capacity signal (F7).
+    if signals.exception_type and "cancelled" in signals.exception_type.casefold():
+        return Available()
+
+    # 1. Auth first. Terminal. Never retried.
+    if http_status in {401, 403} or status in _AUTH_STATUSES:
+        return AuthenticationFailed(detail=message, reason=status or str(http_status or ""))
+
+    # 7-before-5: 503 / UNAVAILABLE is never CreditsExhausted (F9.3).
+    if http_status == 503 or status == "UNAVAILABLE":
+        return TransientThrottle(retry_after=signals.retry_info_delay)
+
+    spend = looks_like_spend_limit(message)
+
+    rejected = (
+        http_status == 429
+        or status == "RESOURCE_EXHAUSTED"
+        or spend
+        or signals.error_code in {"rate_limit_exceeded", "quota_exceeded"}
+        or bool(signals.quota_metric)
+        or bool(signals.quota_violations)
+        or signals.retry_info_delay is not None
+    )
+    if not rejected:
+        return Available()
+
+    # 5. Billing / spend markers. Brief: spend-based language is CreditsExhausted,
+    # not a 10-minute WindowExhausted. Checked before window construction so a
+    # billing marker can never produce a state carrying resets_at.
+    if spend:
+        return CreditsExhausted(detail=message)
+
+    # quota_metric is a structured field (brief) — treat like quotaId.
+    metric_kind = _window_kind_from_token(signals.quota_metric)
+    if metric_kind is not None:
+        return _window(metric_kind, instant, quota_id=signals.quota_metric)
+
+    # 2. Structured error_code.
+    if signals.error_code == "quota_exceeded":
+        return _window("rpd", instant)
+    if signals.error_code == "rate_limit_exceeded":
+        return TransientThrottle(retry_after=signals.retry_info_delay, quota_id=signals.error_code)
+
+    # 3. QuotaFailure.violations[].quotaId.
+    violation_kind = _window_kind_from_violations(signals.quota_violations)
+    if violation_kind is not None:
+        return _window(violation_kind, instant)
+
+    # 4. RetryInfo.retryDelay presence is evidence of transience.
+    if signals.retry_info_delay is not None:
+        return TransientThrottle(retry_after=signals.retry_info_delay)
+
+    # 6. Daily / per-minute markers in the message.
+    message_kind = _window_kind_from_message(message)
+    if message_kind is not None:
+        return _window(message_kind, instant)
+
+    # 8. Ambiguous 429 RESOURCE_EXHAUSTED → unknown window, never Available.
+    return WindowExhausted(rate_limit_type="unknown")
