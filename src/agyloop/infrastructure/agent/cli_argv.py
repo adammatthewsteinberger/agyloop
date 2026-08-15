@@ -125,12 +125,12 @@ def build_agy_argv(
         settings = {}
         warning = UNSAFE_SKIP_WARNING
     else:
-        if use_sandbox:
-            argv.append("--sandbox")
         settings = {
             "toolPermission": "proceed-in-sandbox",
             "permissions": {"deny": ["unsandboxed"]},
         }
+    if use_sandbox:
+        argv.append("--sandbox")
 
     if "--dangerously-skip-permissions" in argv and "--sandbox" in argv:
         raise _unsafe_refusal(

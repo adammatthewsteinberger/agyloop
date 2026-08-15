@@ -112,7 +112,7 @@ def stock_harness_path() -> Path | None:
         exe = path.with_suffix(".exe")
         if exe.is_file():
             return exe
-    except (KeyError, OSError):
+    except (KeyError, OSError, AttributeError):
         return None
     return None
 
