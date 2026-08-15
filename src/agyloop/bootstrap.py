@@ -37,6 +37,7 @@ from agyloop.domain.model_profile import resolve_profile
 from agyloop.domain.permission import DEFAULT_USER_PERMISSION_MODE, parse_user_permission_mode
 from agyloop.domain.plan import WorkPlan
 from agyloop.domain.snapshot import SnapshotRef
+from agyloop.domain.verbosity import LogPlan
 from agyloop.domain.waiting import WaitPolicyConfig
 from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
 from agyloop.infrastructure.agent.cli_argv import UNSAFE_SKIP_WARNING
@@ -54,7 +55,11 @@ from agyloop.infrastructure.control import FileRunControl
 from agyloop.infrastructure.doctor_env import RealDoctorEnvironment, developer_api_key
 from agyloop.infrastructure.events import JsonlRunEventSink
 from agyloop.infrastructure.git_savepoints import GitSavePointStore
-from agyloop.infrastructure.logging import StructlogAppLogger, configure_logging
+from agyloop.infrastructure.logging import (
+    StructlogAppLogger,
+    apply_third_party_level,
+    configure_logging,
+)
 from agyloop.infrastructure.notify import StderrNotifier
 from agyloop.infrastructure.resources import ResourcePortAdapter, RunResourceStore
 from agyloop.infrastructure.rundir import (
@@ -144,8 +149,10 @@ def build_api_click_group() -> Any:
     return _build_api_click_group()
 
 
-def configure_cli_logging(*, level: str = "INFO", log_file: Path | None = None) -> None:
-    configure_logging(log_file=log_file, level=level, human_console=True)
+def configure_cli_logging(*, plan: LogPlan, log_file: Path | None = None) -> None:
+    """Apply the resolved -v / -q / --log-level plan to this process."""
+    configure_logging(log_file=log_file, level=plan.level, human_console=True)
+    apply_third_party_level(plan)
 
 
 def effective_config(cwd: Path) -> dict[str, Any]:

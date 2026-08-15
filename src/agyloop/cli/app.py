@@ -24,6 +24,7 @@ from agyloop.cli.commands.status import status
 from agyloop.cli.commands.stop import stop
 from agyloop.cli.commands.unwind import unwind
 from agyloop.cli.commands.watch import watch
+from agyloop.domain.verbosity import resolve_log_plan
 
 app = typer.Typer(
     name="agyloop",
@@ -75,8 +76,17 @@ def root(
         ),
     ] = False,
     verbose: Annotated[
+        int,
+        typer.Option(
+            "--verbose",
+            "-v",
+            count=True,
+            help="More detail: -v debug, -vv also third-party libraries, -vvv full payloads.",
+        ),
+    ] = 0,
+    quiet: Annotated[
         bool,
-        typer.Option("-v", "--verbose", help="DEBUG-level human logs on stderr."),
+        typer.Option("--quiet", "-q", help="Warnings and errors only."),
     ] = False,
     log_level: Annotated[
         str | None,
@@ -89,8 +99,12 @@ def root(
 ) -> None:
     """Run the agyloop command-line interface."""
     del version
-    level = "DEBUG" if verbose else (log_level or "INFO")
-    bootstrap.configure_cli_logging(level=level, log_file=log_file)
+    try:
+        plan = resolve_log_plan(verbose=verbose, quiet=quiet, log_level=log_level)
+    except ValueError as exc:
+        typer.echo(f"Error: {exc}", err=True)
+        raise typer.Exit(code=2) from exc
+    bootstrap.configure_cli_logging(plan=plan, log_file=log_file)
 
 
 def main() -> None:
