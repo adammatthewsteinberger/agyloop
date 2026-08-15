@@ -149,3 +149,85 @@ async def test_gateway_send_turn_operator_cancel_detected() -> None:
 async def test_gateway_empty_plan_seed_and_agent_none_error() -> None:
     gateway = AntigravityAgentGateway(cwd="/tmp/dir1", plan_seed="")
     assert gateway._seeded_prompt("my prompt") == "my prompt"
+
+
+async def test_ensure_started_restarts_an_agent_the_harness_dropped() -> None:
+    """The SDK can mark an agent not-started out from under us (harness crash,
+    dropped socket). Reusing it would send a turn nothing is listening on, so
+    `_ensure_started` has to notice and reconnect instead of trusting the
+    cached reference."""
+    stale_agent = MagicMock()
+    stale_agent.is_started = False
+
+    gateway = AntigravityAgentGateway(cwd="/tmp/dir1")
+    gateway._agent = stale_agent
+
+    with (
+        patch.object(gateway, "close", new_callable=AsyncMock) as mock_close,
+        patch("agyloop.infrastructure.agent.gateway.Agent") as mock_agent_cls,
+    ):
+        fresh_agent = MagicMock()
+        mock_agent_instance = AsyncMock()
+        mock_agent_instance.__aenter__.return_value = fresh_agent
+        mock_agent_cls.return_value = mock_agent_instance
+
+        # close() is mocked, so it won't actually clear _agent -- clear it the
+        # way the real close() does, so _ensure_started reconnects.
+        async def _clear_agent() -> None:
+            gateway._agent = None
+
+        mock_close.side_effect = _clear_agent
+
+        result = await gateway._ensure_started()
+
+    mock_close.assert_awaited_once()
+    assert result is fresh_agent
+
+
+async def test_send_turn_normalizes_transport_errors_to_connection_error() -> None:
+    """A dropped socket surfaces as ConnectionResetError/BrokenPipeError/EOFError
+    (or websockets' ConnectionClosed) depending on which layer notices first.
+    All four have to collapse onto AntigravityConnectionError so classify()
+    sees one capacity-adjacent signal instead of four vendor-specific ones."""
+    mock_agent = MagicMock()
+    mock_agent.conversation_id = None
+    mock_agent.is_started = True
+    mock_agent.chat = AsyncMock(side_effect=ConnectionResetError("peer reset"))
+
+    gateway = AntigravityAgentGateway(cwd="/tmp/dir1")
+    with patch("agyloop.infrastructure.agent.gateway.Agent") as mock_agent_cls:
+        mock_agent_instance = AsyncMock()
+        mock_agent_instance.__aenter__.return_value = mock_agent
+        mock_agent_cls.return_value = mock_agent_instance
+
+        outcome = await gateway.send_turn("do something")
+
+    assert outcome.signals.exception_type == "AntigravityConnectionError"
+    assert "peer reset" in (outcome.signals.exception_message or "")
+
+
+def test_connection_closed_falls_back_to_a_local_shim_without_websockets() -> None:
+    """`websockets` is an optional dependency of the SDK's transport, not of
+    agyloop directly. If it is absent, the module must still import and the
+    shim it builds must still satisfy `isinstance(exc, ConnectionClosed)` in
+    `send_turn`'s except clause -- otherwise a transport drop on a host
+    without websockets installed would propagate as an unhandled exception."""
+    import importlib
+    import sys
+
+    real_websockets = sys.modules.pop("websockets", None)
+    real_websockets_exceptions = sys.modules.pop("websockets.exceptions", None)
+    sys.modules["websockets"] = None  # type: ignore[assignment]
+    sys.modules["websockets.exceptions"] = None  # type: ignore[assignment]
+    try:
+        module = importlib.reload(importlib.import_module("agyloop.infrastructure.agent.gateway"))
+        assert issubclass(module.ConnectionClosed, Exception)
+        assert module.ConnectionClosed.__name__ == "ConnectionClosed"
+    finally:
+        del sys.modules["websockets"]
+        del sys.modules["websockets.exceptions"]
+        if real_websockets is not None:
+            sys.modules["websockets"] = real_websockets
+        if real_websockets_exceptions is not None:
+            sys.modules["websockets.exceptions"] = real_websockets_exceptions
+        importlib.reload(importlib.import_module("agyloop.infrastructure.agent.gateway"))
