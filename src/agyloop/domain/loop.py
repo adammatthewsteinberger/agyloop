@@ -21,6 +21,7 @@ from agyloop.domain.capacity import (
     WindowExhausted,
 )
 from agyloop.domain.completion import Blocked, CompletionVerdict, Continue, Done
+from agyloop.domain.forecast import CapacityForecast, WindDown
 from agyloop.domain.waiting import (
     DEFAULT_PROGRESS_WAIT_CONFIG,
     DEFAULT_WAIT_POLICY_CONFIG,
@@ -40,6 +41,7 @@ class Phase(Enum):
     PROBING = auto()
     COMPLETE = auto()
     FAILED = auto()
+    HANDOFF = auto()
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +81,21 @@ class DelayThenSend:
     at: datetime
 
 
-Decision = SendTurn | RunProbe | ScheduleProbe | DelayThenSend | Finish
+@dataclass(frozen=True, slots=True)
+class WindDownAndFinish:
+    """Stop cleanly *before* capacity runs out, so the handoff artifacts can
+    still be produced with room to spare.
+
+    Distinct from Finish: the work is not done and not blocked, it is being
+    handed over. A supervisor reads this as "resume me elsewhere", not "this
+    failed".
+    """
+
+    reason: str
+    forecast: CapacityForecast
+
+
+Decision = SendTurn | RunProbe | ScheduleProbe | DelayThenSend | WindDownAndFinish | Finish
 
 
 def decide_progress_delay(
@@ -126,12 +142,27 @@ def decide_after_turn(
     config: WaitPolicyConfig = DEFAULT_WAIT_POLICY_CONFIG,
     tokens: int = 0,
     dollars: float = 0.0,
+    wind_down: WindDown | None = None,
 ) -> tuple[RunState, Decision]:
     """Called once a real turn has completed.
 
     A capacity rejection always outranks a completion claim — a limit message
     truncating mid-response could coincidentally contain marker-like text, but
     hitting a real limit is never "done".
+
+    The precedence below is the whole safety argument for ``wind_down``, and it
+    is guaranteed by placement rather than by a comment:
+
+      1. authentication failure    terminal, waiting cannot fix credentials
+      2. any real capacity block   a *real* rejection always beats a predicted one
+      3. Done                      never turn a completed run into a handoff
+      4. Blocked                   a blocked run has nothing to hand over
+      5. hard budget cap           an exact cap beats an estimate
+      6. wind_down                 <- the only new branch
+      7. SendTurn
+
+    So only Continue + Available + not-exhausted can wind down: one reachable
+    branch in an otherwise untouched state machine.
     """
     new_ledger = state.ledger.spend_turn(tokens=tokens, dollars=dollars)
 
@@ -162,6 +193,11 @@ def decide_after_turn(
     running = RunState(phase=Phase.RUNNING, ledger=new_ledger)
     if new_ledger.any_exhausted:
         return _fail(running, "budget exhausted"), Finish(success=False, reason="budget exhausted")
+    if wind_down is not None:
+        return (
+            RunState(phase=Phase.HANDOFF, ledger=new_ledger),
+            WindDownAndFinish(reason=wind_down.reason, forecast=wind_down.forecast),
+        )
     return running, SendTurn()
 
 

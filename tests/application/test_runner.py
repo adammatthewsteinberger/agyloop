@@ -21,6 +21,8 @@ from agyloop.domain.control import (
     SetCwdCommand,
     StopCommand,
 )
+from agyloop.domain.forecast import WindDownPolicy
+from agyloop.domain.handoff_marker import HandoffMarker
 from agyloop.domain.waiting import WaitPolicyConfig, next_pacific_midnight
 from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
 from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
@@ -946,3 +948,54 @@ def test_turn_completed_cost_usd_matches_ledger_estimate() -> None:
         assert turn_audit[0][1]["cost_usd"] == pytest.approx(0.10)
 
     run(body())
+
+
+async def test_a_wind_down_finishes_with_a_marker_rather_than_success() -> None:
+    """A supervisor has to tell "resume me elsewhere" from "this is done"."""
+    markers: list[HandoffMarker] = []
+    runner, gateway, _a, _p, _s, _n, _e, _pr = make_runner(
+        turns=[ScriptedTurn(signals=available_signals(), verdict=CONTINUE_VERDICT)],
+        probes=[available_signals()],
+        # One turn of headroom against a reserve of two: the first completed
+        # turn is already inside the reserve.
+        budget=Budget(max_turns=2, max_dollars=10.0),
+    )
+    runner._handoff_marker_writer = markers.append
+    runner._wind_down_policy = WindDownPolicy(enabled=True)
+
+    result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+
+    assert result.success is False
+    assert result.reason.startswith("wind-down:")
+    assert gateway.closed is True
+    assert markers, "a wind-down must leave a handoff marker"
+    assert markers[0].reason == "turn_reserve"
+
+
+async def test_a_wind_down_without_a_writer_still_finishes_cleanly() -> None:
+    """No writer means no marker, which is the honest signal: a supervisor that
+    finds no handoff.json falls back to the reactive path."""
+    runner, _g, _a, _p, _s, _n, _e, _pr = make_runner(
+        turns=[ScriptedTurn(signals=available_signals(), verdict=CONTINUE_VERDICT)],
+        probes=[available_signals()],
+        budget=Budget(max_turns=2, max_dollars=10.0),
+    )
+    runner._wind_down_policy = WindDownPolicy(enabled=True)
+
+    result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+
+    assert result.success is False
+    assert "wind-down" in result.reason
+
+
+async def test_the_policy_off_leaves_the_run_untouched() -> None:
+    """The predictive path is strictly additive."""
+    runner, _g, _a, _p, _s, _n, _e, _pr = make_runner(
+        turns=[ScriptedTurn(signals=available_signals(), verdict=DONE_VERDICT)],
+        probes=[available_signals()],
+        budget=Budget(max_turns=2, max_dollars=10.0),
+    )
+
+    result = await runner.run(initial_prompt="start", continue_prompt="keep going")
+
+    assert result.success is True
