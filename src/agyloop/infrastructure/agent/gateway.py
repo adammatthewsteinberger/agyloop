@@ -230,7 +230,8 @@ class AntigravityAgentGateway:
             return False
         text = str(exc).lower()
         return "conversation" in text and any(
-            marker in text for marker in ("not found", "unknown", "invalid", "expired", "cannot resume")
+            marker in text
+            for marker in ("not found", "unknown", "invalid", "expired", "cannot resume")
         )
 
     def _seeded_prompt(self, prompt_text: str) -> str:
