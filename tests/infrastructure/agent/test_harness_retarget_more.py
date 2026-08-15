@@ -216,10 +216,8 @@ def test_atexit_and_restore() -> None:
 
 def test_prepare_harness_branch_conditions(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("ANTIGRAVITY_HARNESS_PATH", raising=False)
-    from agyloop.infrastructure.agent.harness_retarget import _active
-    global _active
-    # reset module active session if any
     import agyloop.infrastructure.agent.harness_retarget as hr
+
     hr._active = None
     monkeypatch.setenv("AGYLOOP_SKIP_HARNESS_RETARGET", "0")
     monkeypatch.delenv("AGYLOOP_HARNESS_PATH", raising=False)
