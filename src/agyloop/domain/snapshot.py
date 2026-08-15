@@ -17,13 +17,19 @@ SnapshotReason = Literal[
     "waiting",
     "status",
     "manual",
+    "handoff",
 ]
 
 IMMUTABLE_REASONS: frozenset[SnapshotReason] = frozenset(
-    {"started", "stopped", "finished", "failed", "waiting", "manual"}
+    {"started", "stopped", "finished", "failed", "waiting", "manual", "handoff"}
 )
 
-BUNDLE_REASONS: frozenset[SnapshotReason] = frozenset({"stopped", "finished", "failed", "manual"})
+# A handoff snapshot is the one that must be complete: it is the only record
+# the successor has, so it bundles like a terminal reason even though the work
+# is not finished.
+BUNDLE_REASONS: frozenset[SnapshotReason] = frozenset(
+    {"stopped", "finished", "failed", "manual", "handoff"}
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -56,6 +62,7 @@ def parse_snapshot_reason(value: str) -> SnapshotReason:
         "waiting": "waiting",
         "status": "status",
         "manual": "manual",
+        "handoff": "handoff",
     }
     if key not in mapping:
         raise ValueError(f"invalid snapshot reason {value!r}; expected one of {sorted(mapping)}")

@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Any, Literal, assert_never
 
 from agyloop.application.dto import TurnOutcome
+from agyloop.application.interfaces import DoctorEnvironment
 from agyloop.application.ports import AgentGateway, CapacityProbe
 from agyloop.application.runner import AutonomousRunner
-from agyloop.application.usecases.doctor import DoctorEnvironment
 from agyloop.application.usecases.run_control import (
     EnqueueResult,
     request_prompt,
@@ -37,6 +37,7 @@ from agyloop.domain.model_profile import resolve_profile
 from agyloop.domain.permission import DEFAULT_USER_PERMISSION_MODE, parse_user_permission_mode
 from agyloop.domain.plan import WorkPlan
 from agyloop.domain.snapshot import SnapshotRef
+from agyloop.domain.verbosity import LogPlan
 from agyloop.domain.waiting import WaitPolicyConfig
 from agyloop.infrastructure.agent.catalog import RunRegistryCatalog
 from agyloop.infrastructure.agent.cli_argv import UNSAFE_SKIP_WARNING
@@ -47,13 +48,18 @@ from agyloop.infrastructure.agent.gateway import AntigravityAgentGateway
 from agyloop.infrastructure.agent.gateway_cli import AgyCliAgentGateway
 from agyloop.infrastructure.agent.harness_retarget import restore_site_packages_backups
 from agyloop.infrastructure.agent.probe import AntigravityCapacityProbe
+from agyloop.infrastructure.agent.probe_cli import AgyCliCapacityProbe
 from agyloop.infrastructure.api.binder import build_api_click_group as _build_api_click_group
 from agyloop.infrastructure.config import load_config
 from agyloop.infrastructure.control import FileRunControl
 from agyloop.infrastructure.doctor_env import RealDoctorEnvironment, developer_api_key
 from agyloop.infrastructure.events import JsonlRunEventSink
 from agyloop.infrastructure.git_savepoints import GitSavePointStore
-from agyloop.infrastructure.logging import StructlogAppLogger, configure_logging
+from agyloop.infrastructure.logging import (
+    StructlogAppLogger,
+    apply_third_party_level,
+    configure_logging,
+)
 from agyloop.infrastructure.notify import StderrNotifier
 from agyloop.infrastructure.resources import ResourcePortAdapter, RunResourceStore
 from agyloop.infrastructure.rundir import (
@@ -143,8 +149,10 @@ def build_api_click_group() -> Any:
     return _build_api_click_group()
 
 
-def configure_cli_logging(*, level: str = "INFO", log_file: Path | None = None) -> None:
-    configure_logging(log_file=log_file, level=level, human_console=True)
+def configure_cli_logging(*, plan: LogPlan, log_file: Path | None = None) -> None:
+    """Apply the resolved -v / -q / --log-level plan to this process."""
+    configure_logging(log_file=log_file, level=plan.level, human_console=True)
+    apply_third_party_level(plan)
 
 
 def effective_config(cwd: Path) -> dict[str, Any]:
@@ -169,7 +177,7 @@ def effective_config(cwd: Path) -> dict[str, Any]:
     }
 
 
-def _build_gateway(
+def _build_agent_ports(
     *,
     kind: GatewayKind,
     cwd: Path,
@@ -179,20 +187,40 @@ def _build_gateway(
     plan_seed: str | None,
     strict_autonomy: bool,
     unsafe_skip_permissions: bool,
+    no_probe: bool,
     add_dirs: list[str] | None = None,
     on_event: Any = None,
     api_key: str | None = None,
-) -> AgentGateway:
+) -> tuple[AgentGateway, CapacityProbe]:
+    """Build the turn gateway and the capacity probe together.
+
+    They are returned as a pair on purpose. Building them separately is how
+    ``--gateway cli`` ended up with an SDK preflight probe: the transport choice
+    was consulted for one and forgotten for the other, so opting out of the
+    Antigravity harness still booted it. ``assert_never`` below now makes
+    picking a transport for one but not the other impossible.
+    """
+    probe: CapacityProbe
     match kind:
         case "cli":
-            return AgyCliAgentGateway(
+            gateway: AgentGateway = AgyCliAgentGateway(
                 cwd=str(cwd),
                 conversation_id=conversation_id,
                 model=model,
                 unsafe_skip_permissions=unsafe_skip_permissions,
             )
+            probe = (
+                _NoOpCapacityProbe()
+                if no_probe
+                else AgyCliCapacityProbe(
+                    cwd=str(cwd),
+                    model=model,
+                    unsafe_skip_permissions=unsafe_skip_permissions,
+                )
+            )
+            return gateway, probe
         case "sdk":
-            return AntigravityAgentGateway(
+            gateway = AntigravityAgentGateway(
                 cwd=str(cwd),
                 conversation_id=conversation_id,
                 model=model,
@@ -203,6 +231,12 @@ def _build_gateway(
                 on_event=on_event,
                 api_key=api_key,
             )
+            probe = (
+                _NoOpCapacityProbe()
+                if no_probe
+                else AntigravityCapacityProbe(cwd=str(cwd), model=model, api_key=api_key)
+            )
+            return gateway, probe
         case _:
             assert_never(kind)
 
@@ -229,6 +263,7 @@ def build_runner(
     max_dollars: float | None = None,
     preset: str | None = None,
     effort: str | None = None,
+    run_id: str | None = None,
 ) -> RunnerContext:
     config = load_config(
         cwd=cwd,
@@ -247,7 +282,11 @@ def build_runner(
     )
     run_dir = _run_directory_for_conversation(cwd, conversation_id) if resume else None
     if run_dir is None:
-        run_dir = RunDirectory.create(runs_root_for(cwd), cwd=cwd, plan_path=plan_path)
+        run_dir = RunDirectory.create(
+            runs_root_for(cwd), cwd=cwd, plan_path=plan_path, run_id=run_id
+        )
+    # Rebind to the resolved id: identical to the supplied one when the caller
+    # named the run, the freshly minted one otherwise.
     run_id = run_dir.read_meta().run_id
     trace_id = str(uuid.uuid4())
     parsed_mode = parse_user_permission_mode(config.permission_mode)
@@ -263,7 +302,7 @@ def build_runner(
     )
     extra_dirs = list(add_dirs or [])
     api_key, _source = developer_api_key(os.environ)
-    agent_gateway = _build_gateway(
+    agent_gateway, probe = _build_agent_ports(
         kind=kind,
         cwd=cwd,
         conversation_id=conversation_id,
@@ -272,15 +311,11 @@ def build_runner(
         plan_seed=seed,
         strict_autonomy=strict_autonomy,
         unsafe_skip_permissions=unsafe_skip_permissions,
+        no_probe=no_probe,
         add_dirs=extra_dirs or None,
         on_event=lambda payload: event_sink.emit("sdk.event", dict(payload)),
         api_key=api_key,
     )
-    probe: CapacityProbe
-    if no_probe:
-        probe = _NoOpCapacityProbe()
-    else:
-        probe = AntigravityCapacityProbe(cwd=str(cwd), model=config.model or model, api_key=api_key)
     wait_policy = WaitPolicyConfig(
         max_wait=timedelta(seconds=config.max_wait_seconds) if config.max_wait_seconds else None,
         no_probe=no_probe,

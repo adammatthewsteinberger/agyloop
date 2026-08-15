@@ -8,9 +8,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Protocol
 
-AuthLane = Literal["developer_api", "enterprise", "unresolved"]
+from agyloop.application.interfaces.doctor import (
+    AuthLane,
+    AuthResolution,
+    DoctorEnvironment,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,30 +21,6 @@ class DoctorCheck:
     name: str
     passed: bool
     detail: str
-
-
-@dataclass(frozen=True, slots=True)
-class AuthResolution:
-    """Effective auth lane plus the env/file source that selected it.
-
-    ``lane`` is ``unresolved`` when doctor cannot positively identify
-    Developer API vs Enterprise — it never guesses.
-    """
-
-    lane: AuthLane
-    source: str
-    authenticated: bool
-    detail: str
-
-
-class DoctorEnvironment(Protocol):
-    """What doctor needs from the outside world — no live SDK session."""
-
-    def resolve_auth(self) -> AuthResolution: ...
-    def interactive_hooks_registered(self) -> bool: ...
-    def find_agy_cli(self) -> str | None: ...
-    def agy_cli_version(self, path: str) -> str | None: ...
-    def configured_mcp_servers(self) -> list[str]: ...
 
 
 def run_doctor(env: DoctorEnvironment, *, cwd: Path) -> list[DoctorCheck]:
@@ -119,3 +98,14 @@ def run_doctor(env: DoctorEnvironment, *, cwd: Path) -> list[DoctorCheck]:
 
 def all_passed(checks: list[DoctorCheck]) -> bool:
     return all(check.passed for check in checks)
+
+
+# Re-exported for the same reason `application/ports.py` re-exports the
+# interfaces package: the vocabulary moved, the import path should not break.
+__all__ = [
+    "AuthLane",
+    "AuthResolution",
+    "DoctorCheck",
+    "DoctorEnvironment",
+    "run_doctor",
+]
