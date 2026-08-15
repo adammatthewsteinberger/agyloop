@@ -191,3 +191,33 @@ def test_chunks_with_structured_complete_evaluate_to_done() -> None:
     result = evaluate(structured=outcome.verdict, output_text=outcome.output_text)
     assert result == Done(summary="all green")
     assert "antigravity" not in type(outcome.verdict).__module__
+
+
+def test_verdict_from_structured_non_dict_and_wrong_keys() -> None:
+    from unittest.mock import MagicMock
+
+    from agyloop.infrastructure.agent.translate import partial_text_from_response
+
+    # Non-dict
+    v1 = verdict_from_structured(["not", "a", "dict"])
+    assert v1 is not None
+    assert v1.complete is False
+
+    # Dict with wrong keys
+    v2 = verdict_from_structured({"complete": True})
+    assert v2 is not None
+    assert v2.complete is False
+
+    # partial_text_from_response with text chunks
+    chunk1 = MagicMock()
+    chunk1.__class__.__name__ = "Text"
+    chunk1.text = "partial "
+    chunk2 = MagicMock()
+    chunk2.__class__.__name__ = "Other"
+    chunk3 = MagicMock()
+    chunk3.__class__.__name__ = "Text"
+    chunk3.text = "output"
+
+    resp = MagicMock()
+    resp._buffered_chunks = [chunk1, chunk2, chunk3]
+    assert partial_text_from_response(resp) == "partial output"

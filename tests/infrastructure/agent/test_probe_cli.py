@@ -98,3 +98,24 @@ async def test_an_unclassifiable_failure_fails_closed(tmp_path: Path) -> None:
 
     with pytest.raises(AgentConfigError, match="unknown flag"):
         await probe.probe()
+
+
+@pytest.mark.asyncio
+async def test_missing_agy_cli_raises_config_error(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    probe = AgyCliCapacityProbe(cwd=str(tmp_path))
+    with (
+        patch("shutil.which", return_value=None),
+        pytest.raises(AgentConfigError, match="agy CLI not found on PATH"),
+    ):
+        await probe.probe()
+
+
+@pytest.mark.asyncio
+async def test_probe_cli_with_print_timeout(tmp_path: Path) -> None:
+    runner = _RecordingRunner(_completed(0, stdout="OK"))
+    probe = AgyCliCapacityProbe(cwd=str(tmp_path), print_timeout="15s", runner=runner)
+    await probe.probe()
+    argv = runner.invocations[0].argv
+    assert "--print-timeout" in argv and argv[argv.index("--print-timeout") + 1] == "15s"

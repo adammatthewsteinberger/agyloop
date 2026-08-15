@@ -170,11 +170,15 @@ def _load_savepoints(path: Path) -> list[dict[str, Any]]:
         return []
     rows: list[dict[str, Any]] = []
     try:
-        for line in path.read_text(encoding="utf-8").splitlines():
-            stripped = line.strip()
-            if not stripped:
-                continue
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        try:
             rows.append(json.loads(stripped))
-    except (OSError, json.JSONDecodeError):
-        return rows
+        except json.JSONDecodeError:
+            break
     return rows[-20:]

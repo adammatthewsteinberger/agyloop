@@ -84,3 +84,65 @@ def test_missing_api_key_is_loud(monkeypatch: pytest.MonkeyPatch) -> None:
             "models.generateContent",
             json_body=json.dumps({"model": "models/gemini-2.5-pro"}),
         )
+
+
+def test_invoke_and_print_and_lane_mismatch(monkeypatch: pytest.MonkeyPatch) -> None:
+
+    from agyloop.infrastructure.api.discover import (
+        DiscoveredMethod,
+    )
+
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-key")
+    transport = _FakeTransport()
+    gateway = GeminiRestGateway(transport=transport)
+
+    # invoke_and_print
+    output = gateway.invoke_and_print(
+        "models.generateContent",
+        json_body=json.dumps({"contents": []}),
+        scalar_values={"extra": None, "model": "models/gemini-2.5-flash"},
+    )
+    assert '"ok": true' in output
+
+    # Lane mismatch error
+    method = DiscoveredMethod(
+        path="m",
+        http_method="POST",
+        http_path="v1/m",
+        method_id="m",
+        lane="vertex",
+    )
+    with pytest.raises(ValueError, match="belongs to lane 'vertex', not 'developer'"):
+        gateway.invoke("m", lane="developer", method=method)
+
+    # Missing vertex access token
+    monkeypatch.delenv("GOOGLE_ACCESS_TOKEN", raising=False)
+    monkeypatch.delenv("CLOUDSDK_AUTH_ACCESS_TOKEN", raising=False)
+    with pytest.raises(ValueError, match="Vertex lane needs GOOGLE_ACCESS_TOKEN"):
+        gateway.invoke(
+            "projects.locations.publishers.models.generateContent",
+            lane="vertex",
+            json_body=json.dumps(
+                {"model": "projects/p/locations/l/publishers/google/models/m", "contents": []}
+            ),
+        )
+
+
+def test_discover_baseline_edge_cases() -> None:
+    from unittest.mock import patch
+
+    from agyloop.infrastructure.api.discover import discover_surface, load_baseline
+
+    # Non-dict baseline
+    with patch("importlib.resources.files") as mock_files:
+        mock_files.return_value.joinpath.return_value.read_text.return_value = '["not a dict"]'
+        with pytest.raises(TypeError, match="must be a JSON object"):
+            load_baseline()
+
+    # Baseline without details (falls back to methods list)
+    with patch(
+        "agyloop.infrastructure.api.discover.load_baseline", return_value={"methods": ["m1", "m2"]}
+    ):
+        methods = discover_surface()
+        assert len(methods) == 2
+        assert methods[0].path == "m1"

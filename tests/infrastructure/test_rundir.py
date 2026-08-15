@@ -102,3 +102,43 @@ def test_resolve_run_directory_refuses_run_with_dead_pid(tmp_path: Path) -> None
         pytest.raises(FileNotFoundError, match="not active"),
     ):
         resolve_run_directory(tmp_path, run_id=directory.read_meta().run_id)
+
+
+def test_rundir_plan_text_and_pid_alive_and_resolve_any(tmp_path: Path) -> None:
+    from agyloop.infrastructure.rundir import pid_alive, resolve_run_directory_any
+
+    # 1. pid_alive with PermissionError
+    with patch("os.kill", side_effect=PermissionError):
+        assert pid_alive(1234) is True
+
+    # 2. read_plan_text fallback when root plan.md deleted
+    orig_plan = tmp_path / "original_plan.md"
+    orig_plan.write_text("plan contents", encoding="utf-8")
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    directory.update_meta(plan_path=str(orig_plan))
+    assert directory.read_plan_text() == "plan contents"
+
+    # 3. Non-directory file inside runs root
+    (runs_root_for(tmp_path) / "stray_file.txt").write_text("ignore me")
+    dirs = list_run_directories(tmp_path)
+    assert len(dirs) == 1
+
+    # 4. resolve_run_directory_any
+    # Explicit
+    assert (
+        resolve_run_directory_any(tmp_path, run_id=directory.read_meta().run_id).root
+        == directory.root
+    )
+    # Return newest active when run_id is None
+    active_dir = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    assert resolve_run_directory_any(tmp_path).root == active_dir.root
+    # Fallback to newest when all inactive
+    active_dir.update_meta(status="finished")
+    directory.update_meta(status="finished")
+    assert resolve_run_directory_any(tmp_path).root == active_dir.root
+
+    # Empty
+    empty_tmp = tmp_path / "empty_dir"
+    empty_tmp.mkdir()
+    with pytest.raises(FileNotFoundError, match="no agyloop runs found"):
+        resolve_run_directory_any(empty_tmp)

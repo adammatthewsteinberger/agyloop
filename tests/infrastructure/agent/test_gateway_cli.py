@@ -155,3 +155,40 @@ async def test_cli_gateway_missing_agy_raises_when_using_real_runner(
     gateway = AgyCliAgentGateway(cwd=str(tmp_path))
     with pytest.raises(AgentConfigError, match="agy CLI not found"):
         await gateway.send_turn("go")
+
+
+@pytest.mark.asyncio
+async def test_cli_gateway_helpers_and_execute_agy(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    from agyloop.domain.model_profile import ModelEffortProfile
+    from agyloop.infrastructure.agent.gateway_cli import execute_agy
+
+    # execute_agy with settings
+    inv = AgyCliInvocation(argv=["echo", "hi"], settings={"toolPermission": "sandbox"})
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["echo"], returncode=0, stdout="hi\n"
+        )
+        res = execute_agy(inv, cwd=tmp_path)
+        assert res.returncode == 0
+        assert (tmp_path / ".agyloop" / "cli-settings.json").is_file()
+
+    # Helper methods on AgyCliAgentGateway
+    gateway = AgyCliAgentGateway(
+        cwd=str(tmp_path),
+        print_timeout="10m",
+        runner=_ScriptedAgy(
+            [subprocess.CompletedProcess(args=["agy"], returncode=0, stdout="done")]
+        ),
+    )
+    assert gateway.resolve_tool_approval("r1", allow=True) is False
+    await gateway.set_profile(ModelEffortProfile(model="gemini-2.5-flash", effort="low"))
+    assert gateway._model == "gemini-2.5-flash"
+    await gateway.set_permission_mode("scoped")
+    await gateway.set_cwd(str(tmp_path / "new_cwd"))
+    assert gateway._cwd == tmp_path / "new_cwd"
+    await gateway.set_session_resources(foo="bar")
+    outcome = await gateway.send_turn("hello")
+    assert outcome.output_text == "done"
+    await gateway.close()
