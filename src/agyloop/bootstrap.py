@@ -19,9 +19,9 @@ from pathlib import Path
 from typing import Any, Literal, assert_never
 
 from agyloop.application.dto import TurnOutcome
+from agyloop.application.interfaces import DoctorEnvironment
 from agyloop.application.ports import AgentGateway, CapacityProbe
 from agyloop.application.runner import AutonomousRunner
-from agyloop.application.usecases.doctor import DoctorEnvironment
 from agyloop.application.usecases.run_control import (
     EnqueueResult,
     request_prompt,

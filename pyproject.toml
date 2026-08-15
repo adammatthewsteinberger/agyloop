@@ -128,3 +128,16 @@ name = "No Anthropic or Claude agent SDK imports"
 type = "forbidden"
 source_modules = ["agyloop"]
 forbidden_modules = ["anthropic", "claude_agent_sdk"]
+
+
+[[tool.importlinter.contracts]]
+name = "Interfaces declare seams, never consume them"
+type = "forbidden"
+source_modules = ["agyloop.application.interfaces"]
+forbidden_modules = [
+    "agyloop.application.runner",
+    "agyloop.application.usecases",
+    "agyloop.infrastructure",
+    "agyloop.cli",
+    "agyloop.bootstrap",
+]
