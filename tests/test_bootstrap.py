@@ -9,6 +9,8 @@ from google.antigravity.types import BuiltinTools
 from agyloop.bootstrap import build_runner, parse_gateway
 from agyloop.infrastructure.agent.gateway import AntigravityAgentGateway
 from agyloop.infrastructure.agent.gateway_cli import AgyCliAgentGateway
+from agyloop.infrastructure.agent.probe import AntigravityCapacityProbe
+from agyloop.infrastructure.agent.probe_cli import AgyCliCapacityProbe
 from agyloop.infrastructure.control import FileRunControl
 from agyloop.infrastructure.git_savepoints import GitSavePointStore
 from agyloop.infrastructure.notify import StderrNotifier
@@ -52,3 +54,41 @@ def test_build_runner_cli_gateway_and_ramp(tmp_path: Path) -> None:
     assert context.runner._ramp == 4
     assert parse_gateway("SDK") == "sdk"
     assert parse_gateway("cli") == "cli"
+
+
+def test_cli_gateway_gets_a_cli_probe_not_the_sdk_harness(tmp_path: Path) -> None:
+    """--gateway cli must not boot the Antigravity harness for the preflight probe.
+
+    Regression: bootstrap consulted the gateway kind when building the turn
+    gateway and forgot it when building the probe, so `--gateway cli` still
+    spawned the local harness and died with
+    `RuntimeError: Failed to read length from stdout` before turn one.
+    """
+    context = build_runner(cwd=tmp_path, gateway="cli")
+    assert isinstance(context.gateway, AgyCliAgentGateway)
+    assert isinstance(context.runner._probe, AgyCliCapacityProbe)
+    assert not isinstance(context.runner._probe, AntigravityCapacityProbe)
+
+
+def test_cli_gateway_never_constructs_the_antigravity_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def _explode(*args: object, **kwargs: object) -> None:
+        raise AssertionError("--gateway cli must never construct the SDK Agent")
+
+    monkeypatch.setattr("agyloop.infrastructure.agent.probe.Agent", _explode)
+    context = build_runner(cwd=tmp_path, gateway="cli")
+    assert isinstance(context.runner._probe, AgyCliCapacityProbe)
+
+
+def test_sdk_gateway_still_gets_the_sdk_probe(tmp_path: Path) -> None:
+    context = build_runner(cwd=tmp_path, gateway="sdk")
+    assert isinstance(context.gateway, AntigravityAgentGateway)
+    assert isinstance(context.runner._probe, AntigravityCapacityProbe)
+
+
+@pytest.mark.parametrize("gateway", ["sdk", "cli"])
+def test_no_probe_beats_the_transport_choice(tmp_path: Path, gateway: str) -> None:
+    context = build_runner(cwd=tmp_path, gateway=gateway, no_probe=True)
+    assert not isinstance(context.runner._probe, AntigravityCapacityProbe | AgyCliCapacityProbe)
+    assert context.runner._wait_policy.no_probe is True

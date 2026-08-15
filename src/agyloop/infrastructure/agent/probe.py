@@ -6,6 +6,7 @@ ledger. ``--no-probe`` skips this adapter entirely.
 
 from __future__ import annotations
 
+from contextlib import suppress
 from pathlib import Path
 
 from google.antigravity import Agent, LocalAgentConfig
@@ -39,6 +40,23 @@ from agyloop.infrastructure.agent.translate import (
 )
 
 PROBE_PROMPT = "Reply with the single word OK and nothing else."
+
+_HARNESS_DIAGNOSIS = (
+    "the local Antigravity harness failed to start. This is a harness problem, "
+    "not a capacity problem.\n"
+    "  - Re-run with `--gateway cli` to avoid the SDK harness entirely.\n"
+    "  - Or `--no-probe` to skip the preflight probe.\n"
+    "  - Or `agyloop doctor --repair-harness` to restore the stock binary.\n"
+    "  - Override the binary with ANTIGRAVITY_HARNESS_PATH, or clear the patched\n"
+    "    copy cache at AGYLOOP_HARNESS_CACHE (default ~/.cache/agyloop/localharness).\n"
+    "  See docs/contributing/harness-patch.md."
+)
+
+
+def harness_startup_error(exc: BaseException) -> AgentConfigError:
+    """Diagnose a harness startup failure instead of surfacing a bare
+    ``RuntimeError: Failed to read length from stdout`` traceback."""
+    return AgentConfigError(f"{_HARNESS_DIAGNOSIS}\n  Underlying error: {exc}")
 
 
 def build_probe_config(
@@ -84,9 +102,13 @@ class AntigravityCapacityProbe:
     async def probe(self) -> TurnOutcome:
         prepare_harness()
         agent = Agent(build_probe_config(cwd=self._cwd, model=self._model, api_key=self._api_key))
-        session = await agent.__aenter__()
         response: ChatResponse | None = None
         try:
+            # __aenter__ spawns the local harness subprocess and can fail before
+            # any session exists. It must be inside the try so the finally below
+            # reaps the orphaned Popen -- otherwise a harness that dies without
+            # writing its length header leaks a process and escapes undiagnosed.
+            session = await agent.__aenter__()
             with capture_harness_logs() as logs:
                 response = await session.chat(PROBE_PROMPT)
                 output_text = await response.text()
@@ -107,5 +129,13 @@ class AntigravityCapacityProbe:
         ) as exc:
             partial = partial_text_from_response(response) if response is not None else ""
             return outcome_from_exception(exc, output_text=partial, session_id=None)
+        except (RuntimeError, OSError) as exc:
+            # The SDK raises a bare RuntimeError when the harness subprocess exits
+            # without writing its 4-byte length header. Fail closed with a
+            # diagnosis rather than a raw traceback out of typer.
+            raise harness_startup_error(exc) from exc
         finally:
-            await agent.__aexit__(None, None, None)
+            # A harness that never started cannot be shut down cleanly; the
+            # startup error above is the one worth reporting.
+            with suppress(RuntimeError, OSError):
+                await agent.__aexit__(None, None, None)

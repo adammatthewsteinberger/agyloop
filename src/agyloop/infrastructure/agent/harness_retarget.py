@@ -25,8 +25,11 @@ import importlib
 import logging
 import os
 import shutil
+import signal
+import subprocess  # nosec B404 - fixed argv smoke check, never shell=True
 import sys
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -128,12 +131,114 @@ def patch_harness_bytes(data: bytes) -> bytes:
     return data.replace(_WITHDRAWN_BYTES, _BINARY_LIVE_BYTES)
 
 
+def copy_harness_siblings(stock: Path, dest_dir: Path) -> list[str]:
+    """Mirror every other file in the stock ``bin/`` next to the patched copy.
+
+    The harness resolves some resources relative to its own directory (the
+    binary carries ``language_server*`` symbols). Copying only the 101 MB
+    binary into an otherwise-empty cache dir leaves those siblings missing, and
+    the harness then dies before writing its 4-byte length header -- surfacing
+    as ``RuntimeError: Failed to read length from stdout``.
+    """
+    copied: list[str] = []
+    try:
+        entries = sorted(stock.parent.iterdir())
+    except OSError:
+        return copied
+    for entry in entries:
+        if entry.name == stock.name or not entry.is_file():
+            continue
+        target = dest_dir / entry.name
+        try:
+            if target.exists() and target.stat().st_size == entry.stat().st_size:
+                continue
+            shutil.copy2(entry, target)
+            copied.append(entry.name)
+        except OSError:  # pragma: no cover - best effort, never fatal
+            continue
+    return copied
+
+
 def write_patched_copy(stock: Path, dest: Path) -> Path:
     dest.parent.mkdir(parents=True, exist_ok=True)
     patched = patch_harness_bytes(stock.read_bytes())
-    dest.write_bytes(patched)
+    # Rewriting 101 MB on every probe is pure waste; the patch is deterministic,
+    # so an existing correct copy is already the answer.
+    if not dest.is_file() or dest.read_bytes() != patched:
+        dest.write_bytes(patched)
     dest.chmod(stock.stat().st_mode)
+    copy_harness_siblings(stock, dest.parent)
     return dest
+
+
+SMOKE_TIMEOUT_SECONDS = 3.0
+SKIP_SMOKE_ENV = "AGYLOOP_SKIP_HARNESS_SMOKE"
+
+
+def _kill_process_tree(proc: subprocess.Popen[bytes]) -> None:
+    """Kill the smoke-check process and anything it spawned, then reap without
+    blocking. ``communicate()`` with no timeout would wait on pipes a surviving
+    grandchild still holds."""
+    killpg = getattr(os, "killpg", None)
+    getpgid = getattr(os, "getpgid", None)
+    if killpg is not None and getpgid is not None:
+        with suppress(OSError, ProcessLookupError):
+            killpg(getpgid(proc.pid), signal.SIGKILL)
+    with suppress(OSError, ProcessLookupError):
+        proc.kill()
+    with suppress(subprocess.TimeoutExpired, OSError):
+        proc.communicate(timeout=1.0)
+
+
+def smoke_check_harness(dest: Path, *, timeout: float = SMOKE_TIMEOUT_SECONDS) -> str | None:
+    """Confirm the patched copy actually starts. Returns a reason on failure.
+
+    The harness speaks a length-prefixed stdio protocol, so *staying alive* is
+    the success signal -- there is no ``--version`` to ask. A copy that is
+    missing a sibling resource exits immediately instead, which is precisely
+    the failure that surfaces as ``Failed to read length from stdout`` several
+    layers up. Verified once per distinct copy, not once per probe.
+    """
+    if os.environ.get(SKIP_SMOKE_ENV) == "1":
+        return None
+    marker = dest.with_name(dest.name + ".verified")
+    try:
+        stamp = f"{dest.stat().st_size}:{int(dest.stat().st_mtime)}"
+    except OSError as exc:
+        return f"stat_failed:{type(exc).__name__}"
+    if marker.is_file():
+        try:
+            if marker.read_text(encoding="utf-8").strip() == stamp:
+                return None
+        except OSError:  # pragma: no cover - re-verify rather than trust
+            pass
+    try:
+        proc = subprocess.Popen(  # nosec B603 - fixed argv, never shell=True
+            [str(dest)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            # Own process group: the harness spawns a language-server child, and
+            # killing only the parent leaves the child holding the pipes, which
+            # would make the reap below block for as long as the child lives.
+            start_new_session=True,
+        )
+    except OSError as exc:
+        return f"spawn_failed:{type(exc).__name__}:{exc}"
+    try:
+        _, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        # Still running after the window: it started. That is the pass case.
+        _kill_process_tree(proc)
+        with suppress(OSError):
+            marker.write_text(stamp + "\n", encoding="utf-8")
+        return None
+    if proc.returncode == 0:
+        with suppress(OSError):
+            marker.write_text(stamp + "\n", encoding="utf-8")
+        return None
+    detail = (stderr or b"").decode("utf-8", "replace").strip().splitlines()
+    return f"exit_{proc.returncode}:{detail[-1][:200] if detail else 'no stderr'}"
 
 
 @dataclass
@@ -208,6 +313,11 @@ def prepare_harness(*, enable_proxy_if_needed: bool = True) -> HarnessSession:
         write_patched_copy(stock, dest)
         if binary_contains_withdrawn(dest):
             session.notes.append("copy_patch_failed")
+        elif (unrunnable := smoke_check_harness(dest)) is not None:
+            # Adopting a copy that cannot start would trade a withdrawn-model
+            # failure for a harder-to-diagnose stdio one. Fall through to the
+            # site-packages / proxy fallback below instead.
+            session.notes.append(f"copy_patch_unrunnable:{unrunnable}")
         else:
             session.patched_binary = dest
             os.environ[HARNESS_PATH_ENV] = str(dest)

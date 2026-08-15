@@ -12,6 +12,7 @@ from agyloop.infrastructure.agent.harness_retarget import (
     BACKUP_SUFFIX,
     HARNESS_PATH_ENV,
     INPUT_DETECTION_BINARY_ID,
+    SKIP_SMOKE_ENV,
     apply_binary_path_monkeypatch,
     binary_contains_withdrawn,
     overwrite_site_packages_harness,
@@ -21,6 +22,7 @@ from agyloop.infrastructure.agent.harness_retarget import (
     restore_site_packages_backup,
     restore_site_packages_backups,
     select_harness_path,
+    smoke_check_harness,
     write_patched_copy,
 )
 
@@ -76,6 +78,9 @@ def test_prepare_harness_copy_patch_sets_path(
     monkeypatch.delenv(HARNESS_PATH_ENV, raising=False)
     monkeypatch.setenv("AGYLOOP_HARNESS_CACHE", str(cache))
     monkeypatch.setenv("AGYLOOP_NO_SITE_PACKAGES_PATCH", "1")
+    # _STOCK is opaque bytes, not a real executable. This test covers path
+    # selection and patching; runnability is covered by the smoke-check tests.
+    monkeypatch.setenv(SKIP_SMOKE_ENV, "1")
     monkeypatch.setattr(
         "agyloop.infrastructure.agent.harness_retarget.stock_harness_path",
         lambda: stock,
@@ -131,3 +136,65 @@ def test_repair_harness_restores_backup(tmp_path: Path) -> None:
     message = restore_site_packages_backups(stock)
     assert "restored" in message
     assert stock.read_bytes() == _STOCK
+
+
+def _executable(path: Path, body: str) -> Path:
+    path.write_text(body, encoding="utf-8")
+    path.chmod(0o755)
+    return path
+
+
+def test_smoke_check_passes_for_a_binary_that_starts(tmp_path: Path) -> None:
+    harness = _executable(tmp_path / "localharness", "#!/bin/sh\nexec cat >/dev/null\n")
+    assert smoke_check_harness(harness, timeout=2.0) is None
+
+
+def test_smoke_check_passes_for_a_binary_that_blocks(tmp_path: Path) -> None:
+    """Staying alive is the success signal -- the real harness waits on stdio."""
+    harness = _executable(tmp_path / "localharness", "#!/bin/sh\nsleep 30\n")
+    assert smoke_check_harness(harness, timeout=0.5) is None
+
+
+def test_smoke_check_rejects_a_binary_that_dies_immediately(tmp_path: Path) -> None:
+    """Reproduces a copy missing a sibling resource: it exits before writing its
+    length header, which surfaces as 'Failed to read length from stdout'."""
+    harness = _executable(
+        tmp_path / "localharness",
+        "#!/bin/sh\necho 'language_server_macos_arm64: no such file' >&2\nexit 1\n",
+    )
+    reason = smoke_check_harness(harness, timeout=2.0)
+    assert reason is not None
+    assert "exit_1" in reason
+    assert "language_server_macos_arm64" in reason
+
+
+def test_smoke_check_is_verified_once_per_copy(tmp_path: Path) -> None:
+    harness = _executable(tmp_path / "localharness", "#!/bin/sh\nexit 0\n")
+    assert smoke_check_harness(harness, timeout=2.0) is None
+    marker = harness.with_name("localharness.verified")
+    assert marker.is_file()
+    # Break the binary but leave the marker: a matching stamp short-circuits.
+    assert smoke_check_harness(harness, timeout=2.0) is None
+
+
+def test_smoke_check_honours_the_operator_opt_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    harness = _executable(tmp_path / "localharness", "#!/bin/sh\nexit 3\n")
+    monkeypatch.setenv(SKIP_SMOKE_ENV, "1")
+    assert smoke_check_harness(harness, timeout=2.0) is None
+
+
+def test_copy_patch_mirrors_sibling_resources(tmp_path: Path) -> None:
+    """The harness resolves resources next to its own binary; copying only the
+    binary into an empty cache dir is what leaves them missing."""
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    stock = bin_dir / "localharness"
+    stock.write_bytes(_STOCK)
+    (bin_dir / "language_server_macos_arm64").write_bytes(b"sibling")
+    dest = tmp_path / "cache" / "localharness"
+
+    write_patched_copy(stock, dest)
+
+    assert (dest.parent / "language_server_macos_arm64").read_bytes() == b"sibling"
