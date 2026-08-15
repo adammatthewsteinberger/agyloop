@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -134,6 +133,10 @@ def test_resource_port_adapter(tmp_path: Path) -> None:
     # Unsupported mutate
     with pytest.raises(ValueError, match="unsupported resource mutate"):
         adapter.apply_mutate(action="unknown", kind="unknown", value="")
+    with pytest.raises(ValueError, match="unsupported resource mutate"):
+        adapter.apply_mutate(action="edit", kind="attachment", value="")
+    with pytest.raises(ValueError, match="unsupported resource mutate"):
+        adapter.apply_mutate(action="edit", kind="folder", value="")
 
     # set_permission_mode and set_cwd
     adapter.set_permission_mode("yolo")
@@ -141,3 +144,14 @@ def test_resource_port_adapter(tmp_path: Path) -> None:
     snap = store.snapshot()
     assert snap.permission_mode == "yolo"
     assert snap.cwd == str(tmp_path.resolve())
+
+
+def test_flags_json_non_dict(tmp_path: Path) -> None:
+    store = RunResourceStore(tmp_path / "resources")
+    store.ensure()
+    (store.root / "flags.json").write_text('"string json"', encoding="utf-8")
+    snap = store.snapshot()
+    assert snap.permission_mode == "autonomous"
+
+    store.set_flag(permission_mode="safe")
+    assert store.snapshot().permission_mode == "safe"

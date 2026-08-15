@@ -44,15 +44,20 @@ def test_status_snapshot_skips_duplicate_digest(tmp_path: Path) -> None:
 
 def test_snapshot_builder_edge_cases(tmp_path: Path) -> None:
     directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    directory.snapshots_root.mkdir(parents=True, exist_ok=True)
 
     # Corrupt latest.json
     latest = directory.snapshots_root / "latest.json"
     latest.write_text("invalid json", encoding="utf-8")
+
     builder = RunSnapshotBuilder(directory)
     assert builder._latest_digest is None
 
     latest.write_text('"string json"', encoding="utf-8")
     assert builder._read_latest_digest() is None
+
+    latest.write_text(json.dumps({"schema_version": 1, "run_id": "r1"}), encoding="utf-8")
+    assert builder._read_latest_digest() is not None
 
     # Invalid clock returning non-datetime
     class BadClock:
@@ -80,3 +85,6 @@ def test_load_savepoints(tmp_path: Path) -> None:
     rows = _load_savepoints(sp_file)
     assert len(rows) == 20  # capped at last 20
     assert rows[-1]["idx"] == 24
+
+    with patch("pathlib.Path.read_text", side_effect=OSError("perm denied")):
+        assert _load_savepoints(sp_file) == []

@@ -82,7 +82,9 @@ def test_all_control_command_roundtrips(tmp_path: Path) -> None:
     assert deny_default.reason == "denied by operator"
 
     # Test resource_mutate without name
-    mutate_no_name = _payload_to_command({"type": "resource_mutate", "action": "rm", "kind": "folder", "value": "/tmp"})
+    mutate_no_name = _payload_to_command(
+        {"type": "resource_mutate", "action": "rm", "kind": "folder", "value": "/tmp"}
+    )
     assert isinstance(mutate_no_name, ResourceMutateCommand)
     assert mutate_no_name.name is None
 
@@ -94,6 +96,13 @@ def test_all_control_command_roundtrips(tmp_path: Path) -> None:
     # Test unknown command type
     with pytest.raises(ValueError, match="unknown control command type"):
         _payload_to_command({"type": "unknown_cmd"})
+
+    # Test unknown command in _command_to_payload
+    class UnknownCommand:
+        pass
+
+    with pytest.raises(AssertionError):
+        _command_to_payload(UnknownCommand())  # type: ignore[arg-type]
 
 
 def test_file_run_control_ignores_corrupt_files(tmp_path: Path) -> None:

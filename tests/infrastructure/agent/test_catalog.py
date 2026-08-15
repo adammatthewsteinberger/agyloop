@@ -78,3 +78,12 @@ def test_catalog_skips_directories_without_meta(tmp_path: Path) -> None:
     catalog = RunRegistryCatalog()
     refs = catalog.list_all(str(tmp_path))
     assert {ref.session_id for ref in refs} == {"kept"}
+
+
+def test_catalog_handles_invalid_started_at(tmp_path: Path) -> None:
+    directory = RunDirectory.create(runs_root_for(tmp_path), cwd=tmp_path)
+    directory.update_meta(conversation_id="kept-invalid-date", started_at="invalid-iso-date")
+    catalog = RunRegistryCatalog()
+    refs = catalog.list_all(str(tmp_path))
+    assert len(refs) == 1
+    assert refs[0].last_modified is None

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from agyloop.application.dto import TurnOutcome
-from agyloop.application.interfaces import ControlInbox
 from agyloop.application.runner import AutonomousRunner
 from agyloop.application.usecases.doctor import (
     AuthResolution,
@@ -28,7 +27,6 @@ from agyloop.application.usecases.run_control import (
     request_tool_decision,
 )
 from agyloop.domain.budget import Budget
-from agyloop.domain.capacity import WindowExhausted
 from agyloop.domain.classify import TurnSignals
 from agyloop.domain.control import (
     ApproveToolCommand,
@@ -108,9 +106,13 @@ def test_all_run_control_usecases() -> None:
     assert res.command_type == "deny_tool"
     assert inbox.commands[-1] == DenyToolCommand(request_id="req3", reason="denied by operator")
 
-    res = request_resource_mutate(inbox, action="add", kind="skill", value="foo", name="bar", run_id="r1")
+    res = request_resource_mutate(
+        inbox, action="add", kind="skill", value="foo", name="bar", run_id="r1"
+    )
     assert res.command_type == "resource_mutate"
-    assert inbox.commands[-1] == ResourceMutateCommand(action="add", kind="skill", value="foo", name="bar")
+    assert inbox.commands[-1] == ResourceMutateCommand(
+        action="add", kind="skill", value="foo", name="bar"
+    )
 
     res = request_response_feedback(inbox, verdict="good", note="great", run_id="r1")
     assert res.command_type == "response_feedback"
@@ -127,7 +129,9 @@ class _DoctorEnvWithCli:
         self._cli_version = cli_version
 
     def resolve_auth(self) -> AuthResolution:
-        return AuthResolution(lane="developer_api", source="GOOGLE_API_KEY", authenticated=True, detail="ok")
+        return AuthResolution(
+            lane="developer_api", source="GOOGLE_API_KEY", authenticated=True, detail="ok"
+        )
 
     def interactive_hooks_registered(self) -> bool:
         return False

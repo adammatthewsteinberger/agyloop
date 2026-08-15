@@ -40,3 +40,7 @@ site/
 .idea/
 *.swp
 .DS_Store
+
+# --- agyloop runtime directories ---
+.agyloop/
+

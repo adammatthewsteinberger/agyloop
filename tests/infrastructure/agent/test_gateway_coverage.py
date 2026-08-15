@@ -2,14 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-from google.antigravity.types import (
-    AntigravityConnectionError,
-    AntigravityExecutionError,
-    AntigravityValidationError,
-)
-
-from agyloop.domain.model_profiles import ModelEffortProfile
+from agyloop.domain.model_profile import ModelEffortProfile
 from agyloop.infrastructure.agent.gateway import (
     AntigravityAgentGateway,
     _usage_tokens,
@@ -51,6 +44,13 @@ async def test_gateway_methods_and_reconnect() -> None:
 
     assert gateway.resolve_tool_approval("req1", allow=True) is False
 
+    # Every mutator reconnects through _reconnect, which tears the session down
+    # only when one is live. Without this the assertions below would pass for
+    # the wrong reason -- close() is never reached on a gateway that never
+    # connected, so "did not reconnect" and "had nothing to reconnect" look
+    # identical. close is patched throughout, so the sentinel survives.
+    gateway._agent = object()
+
     # set_profile: same model (no reconnect) vs new model (reconnect)
     await gateway.set_profile(ModelEffortProfile(model="gemini-2.5-flash", effort="high"))
     with patch.object(gateway, "close", new_callable=AsyncMock) as mock_close:
@@ -73,7 +73,9 @@ async def test_gateway_methods_and_reconnect() -> None:
 
     # set_session_resources: no changes vs changes
     with patch.object(gateway, "close", new_callable=AsyncMock) as mock_close:
-        await gateway.set_session_resources(add_dirs=["/tmp/extra"], system_prompt_append="extra prompt")
+        await gateway.set_session_resources(
+            add_dirs=["/tmp/extra"], system_prompt_append="extra prompt"
+        )
         assert not mock_close.called
         await gateway.set_session_resources(add_dirs=["/tmp/new_extra"])
         assert mock_close.called
@@ -82,11 +84,11 @@ async def test_gateway_methods_and_reconnect() -> None:
         assert mock_close.called
 
 
-async def test_gateway_send_turn_operator_cancel_and_events() -> None:
+async def test_gateway_send_turn_returns_response_text_and_emits_one_event() -> None:
     mock_agent = MagicMock()
     mock_agent.conversation_id = "c123"
     mock_response = MagicMock()
-    mock_response.text = AsyncMock(return_value="operator canceled the run")
+    mock_response.text = AsyncMock(return_value="the model reply")
     mock_response.structured_output = AsyncMock(return_value=None)
     mock_response.usage_metadata = None
     mock_agent.chat = AsyncMock(return_value=mock_response)
@@ -103,29 +105,47 @@ async def test_gateway_send_turn_operator_cancel_and_events() -> None:
         mock_agent_cls.return_value = mock_agent_instance
 
         outcome = await gateway.send_turn("do something")
-        assert outcome.signals.message == "operator canceled the run"
+        # The reply text lands on outcome.output_text. signals carries the capacity
+        # evidence (status, quota, retry) that classify() reads, and a clean
+        # turn leaves all of it unset -- an empty signals set is what makes a
+        # turn classify as Available rather than as an exhaustion.
+        assert outcome.output_text == "the model reply"
+        assert outcome.signals.message is None
+        assert outcome.signals.http_status is None
         assert len(events) == 1
         assert events[0]["event"] == "turn_complete"
         assert events[0]["session_id"] == "c123"
 
-        await gateway.close()
 
+async def test_gateway_send_turn_operator_cancel_detected() -> None:
+    mock_agent = MagicMock()
+    mock_agent.conversation_id = None
+    mock_agent.is_started = True
+    mock_response = MagicMock()
+    mock_response.text = AsyncMock(return_value="context canceled")
+    mock_response.structured_output = AsyncMock(return_value=None)
+    mock_response.usage_metadata = None
+    mock_agent.chat = AsyncMock(return_value=mock_response)
 
-async def test_gateway_resume_degraded_without_plan_seed() -> None:
-    gateway = AntigravityAgentGateway(
-        cwd="/tmp/dir1",
-        conversation_id="conv_old",
-        plan_seed=None,
-    )
-    assert gateway._seeded_prompt("my prompt") == "my prompt"
-
-
-async def test_gateway_exception_when_ensure_started_fails() -> None:
     gateway = AntigravityAgentGateway(cwd="/tmp/dir1")
     with patch("agyloop.infrastructure.agent.gateway.Agent") as mock_agent_cls:
         mock_agent_instance = AsyncMock()
-        mock_agent_instance.__aenter__.side_effect = AntigravityConnectionError("cannot connect to server")
+        mock_agent_instance.__aenter__.return_value = mock_agent
         mock_agent_cls.return_value = mock_agent_instance
 
-        with pytest.raises(AntigravityConnectionError):
-            await gateway.send_turn("prompt")
+        # First turn: operator cancel in output text
+        outcome1 = await gateway.send_turn("turn 1")
+        assert outcome1.signals.message == "context canceled"
+
+        # Second turn: reuses already started agent without calling __aenter__ again
+        mock_response.text = AsyncMock(return_value="normal turn 2")
+        outcome2 = await gateway.send_turn("turn 2")
+        assert outcome2.output_text == "normal turn 2"
+        assert mock_agent_instance.__aenter__.call_count == 1
+
+        await gateway.close()
+
+
+async def test_gateway_empty_plan_seed_and_agent_none_error() -> None:
+    gateway = AntigravityAgentGateway(cwd="/tmp/dir1", plan_seed="")
+    assert gateway._seeded_prompt("my prompt") == "my prompt"

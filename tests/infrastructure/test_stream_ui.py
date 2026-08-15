@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import json
-import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -57,10 +56,14 @@ def test_iter_event_records(tmp_path: Path) -> None:
 def test_dump_transcript(tmp_path: Path) -> None:
     events_file = tmp_path / "events.jsonl"
     events_file.write_text(
-        json.dumps({"event_type": "chatter.prompt", "payload": {"text": "What is 2+2?"}}) + "\n"
-        + json.dumps({"event_type": "chatter.delta", "payload": {"text": "4"}}) + "\n"
-        + json.dumps({"event_type": "chatter.assistant", "payload": {"preview": "It is 4."}}) + "\n"
-        + json.dumps({"event_type": "other", "payload": "not a dict"}) + "\n",
+        json.dumps({"event_type": "chatter.prompt", "payload": {"text": "What is 2+2?"}})
+        + "\n"
+        + json.dumps({"event_type": "chatter.delta", "payload": {"text": "4"}})
+        + "\n"
+        + json.dumps({"event_type": "chatter.assistant", "payload": {"preview": "It is 4."}})
+        + "\n"
+        + json.dumps({"event_type": "other", "payload": "not a dict"})
+        + "\n",
         encoding="utf-8",
     )
     buf = io.StringIO()
@@ -76,26 +79,50 @@ def test_dump_transcript(tmp_path: Path) -> None:
 def test_follow_events_plain(tmp_path: Path) -> None:
     events_file = tmp_path / "events.jsonl"
     events_file.write_text(
-        json.dumps({"event_type": "chatter.delta", "payload": {"text": "chunk"}}) + "\n"
+        json.dumps({"event_type": "chatter.delta", "payload": {"text": "chunk"}})
+        + "\n"
         + "bad json\n"
-        + json.dumps({"event_type": "chatter.tool", "payload": {"name": "read", "preview": "file.py"}}) + "\n"
-        + json.dumps({"event_type": "chatter.other", "payload": "not dict"}) + "\n",
+        + json.dumps(
+            {"event_type": "chatter.tool", "payload": {"name": "read", "preview": "file.py"}}
+        )
+        + "\n"
+        + json.dumps({"event_type": "chatter.other", "payload": "not dict"})
+        + "\n",
         encoding="utf-8",
     )
     with patch("sys.stdout.write") as mock_write, patch("sys.stdout.flush"):
         follow_events_plain(events_file, follow=False)
         assert mock_write.called
 
+        # Loop with follow=True and mock sleep
+        def _break_sleep(_s: float) -> None:
+            raise StopIteration
+
+        with patch("time.sleep", side_effect=_break_sleep), pytest.raises(StopIteration):
+            follow_events_plain(events_file, follow=True)
+
 
 def test_stream_app_drain(tmp_path: Path) -> None:
     events_file = tmp_path / "events.jsonl"
     events_file.write_text(
-        json.dumps({"event_type": "chatter.prompt", "payload": {"text": "prompt text"}}) + "\n"
-        + json.dumps({"event_type": "chatter.delta", "payload": {"text": "delta text"}}) + "\n"
-        + json.dumps({"event_type": "chatter.assistant", "payload": {"text": "assistant text"}}) + "\n"
-        + json.dumps({"event_type": "chatter.tool", "payload": {"name": "grep", "summary": "query"}}) + "\n"
-        + json.dumps({"event_type": "chatter.tool", "payload": {}}) + "\n"
-        + json.dumps({"event_type": "custom.event", "payload": {}}) + "\n"
+        json.dumps({"event_type": "chatter.prompt", "payload": {"text": "prompt text"}})
+        + "\n"
+        + json.dumps({"event_type": "chatter.delta", "payload": {"text": "delta text"}})
+        + "\n"
+        + json.dumps({"event_type": "chatter.assistant", "payload": {"text": "assistant text"}})
+        + "\n"
+        + json.dumps(
+            {"event_type": "chatter.tool", "payload": {"name": "grep", "summary": "query"}}
+        )
+        + "\n"
+        + json.dumps({"event_type": "chatter.tool", "payload": {}})
+        + "\n"
+        + json.dumps({"event_type": "custom.event", "payload": {}})
+        + "\n"
+        + json.dumps({"event_type": "chatter.other", "payload": "not a dict"})
+        + "\n"
+        + json.dumps({"event_type": "chatter.assistant", "payload": {"text": ""}})
+        + "\n"
         + "invalid json\n",
         encoding="utf-8",
     )
@@ -107,8 +134,10 @@ def test_stream_app_drain(tmp_path: Path) -> None:
 
         # Test assistant write when delta was not seen
         events_file.write_text(
-            json.dumps({"event_type": "chatter.prompt", "payload": {"text": "p"}}) + "\n"
-            + json.dumps({"event_type": "chatter.assistant", "payload": {"text": "a"}}) + "\n",
+            json.dumps({"event_type": "chatter.prompt", "payload": {"text": "p"}})
+            + "\n"
+            + json.dumps({"event_type": "chatter.assistant", "payload": {"text": "a"}})
+            + "\n",
             encoding="utf-8",
         )
         app._offset = 0
@@ -131,7 +160,9 @@ def test_stream_app_drain(tmp_path: Path) -> None:
 
 def test_run_textual_app(tmp_path: Path) -> None:
     events_file = tmp_path / "events.jsonl"
-    events_file.write_text('{"event_type": "chatter.delta", "payload": {"text": "hi"}}\n', encoding="utf-8")
+    events_file.write_text(
+        '{"event_type": "chatter.delta", "payload": {"text": "hi"}}\n', encoding="utf-8"
+    )
 
     with patch("sys.stdout.isatty", return_value=False):
         # Non-tty + replay -> dump_transcript
@@ -145,6 +176,9 @@ def test_run_textual_app(tmp_path: Path) -> None:
             run_textual_app(events_path=events_file, replay=False)
 
     # TTY -> StreamApp.run
-    with patch("sys.stdout.isatty", return_value=True), patch("agyloop.infrastructure.stream_ui.StreamApp.run") as mock_run:
+    with (
+        patch("sys.stdout.isatty", return_value=True),
+        patch("agyloop.infrastructure.stream_ui.StreamApp.run") as mock_run,
+    ):
         run_textual_app(events_path=events_file, follow=True, replay=False)
         assert mock_run.called

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -9,15 +8,11 @@ from typer.testing import CliRunner
 
 from agyloop.infrastructure.api.binder import build_api_app, kebab
 from agyloop.infrastructure.api.discover import (
-    ApiLane,
-    DiscoveredMethod,
-    discover_surface,
     parse_api_lane,
 )
 from agyloop.infrastructure.api.gateway import (
     GeminiRestGateway,
     UrllibTransport,
-    _authenticate,
     _load_json_payload,
     _method_for,
     _vertex_access_token,
@@ -72,22 +67,31 @@ def test_urllib_transport() -> None:
         mock_resp.read.return_value = b'{"status": "ok"}'
         mock_urlopen.return_value.__enter__.return_value = mock_resp
 
-        status, text = transport.request("GET", "https://generativelanguage.googleapis.com", headers={}, body=None)
+        status, text = transport.request(
+            "GET", "https://generativelanguage.googleapis.com", headers={}, body=None
+        )
         assert status == 200
         assert text == '{"status": "ok"}'
 
     # HTTPError
     import urllib.error
-    with patch("urllib.request.urlopen", side_effect=urllib.error.HTTPError("url", 404, "not found", {}, MagicMock(read=lambda: b"not found"))):
-        status, text = transport.request("GET", "https://generativelanguage.googleapis.com", headers={}, body=None)
+
+    with patch(
+        "urllib.request.urlopen",
+        side_effect=urllib.error.HTTPError(
+            "url", 404, "not found", {}, MagicMock(read=lambda: b"not found")
+        ),
+    ):
+        status, text = transport.request(
+            "GET", "https://generativelanguage.googleapis.com", headers={}, body=None
+        )
         assert status == 404
         assert text == "not found"
 
 
 def test_api_gateway_errors_and_methods(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    gateway = GeminiRestGateway()
-
     # Unknown method
+
     with pytest.raises(ValueError, match="unknown method"):
         _method_for("unknown.nonexistentMethod", "developer")
 
@@ -131,21 +135,29 @@ def test_api_cli_app(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     app = build_api_app(gateway=mock_gw)
 
     # Invalid lane option
-    res = runner.invoke(app, ["--lane", "badlane", "models", "get", "--json", '{"name": "models/m"}'])
+    res = runner.invoke(
+        app, ["--lane", "badlane", "models", "get", "--json", '{"name": "models/m"}']
+    )
     assert res.exit_code == 1
 
     # Valid execution
-    res = runner.invoke(app, ["--lane", "developer", "models", "get", "--json", '{"name": "models/m"}'])
+    res = runner.invoke(
+        app, ["--lane", "developer", "models", "get", "--json", '{"name": "models/m"}']
+    )
     assert res.exit_code == 0
     assert "gemini-2.5-flash" in res.output
 
     # Lane mismatch error
-    res = runner.invoke(app, ["--lane", "vertex", "models", "get", "--json", '{"name": "models/m"}'])
+    res = runner.invoke(
+        app, ["--lane", "vertex", "models", "get", "--json", '{"name": "models/m"}']
+    )
     assert res.exit_code == 1
     assert "belongs to --lane developer" in res.output
 
     # Gateway invocation exception
     mock_gw.invoke_and_print.side_effect = ValueError("invoke failed")
-    res = runner.invoke(app, ["--lane", "developer", "models", "get", "--json", '{"name": "models/m"}'])
+    res = runner.invoke(
+        app, ["--lane", "developer", "models", "get", "--json", '{"name": "models/m"}']
+    )
     assert res.exit_code == 1
     assert "invoke failed" in res.output

@@ -299,14 +299,14 @@ never in the domain):
 ```python
 @dataclass(frozen=True)
 class TurnSignals:
-    exception_type: str | None          # "AntigravityExecutionError", ...
-    exception_message: str | None       # raw text, redacted before logging
-    http_status: int | None             # recovered when the envelope survives
-    google_status: str | None           # "RESOURCE_EXHAUSTED", "UNAUTHENTICATED", ...
-    error_code: str | None              # "rate_limit_exceeded" | "quota_exceeded" | ...
+    exception_type: str | None  # "AntigravityExecutionError", ...
+    exception_message: str | None  # raw text, redacted before logging
+    http_status: int | None  # recovered when the envelope survives
+    google_status: str | None  # "RESOURCE_EXHAUSTED", "UNAUTHENTICATED", ...
+    error_code: str | None  # "rate_limit_exceeded" | "quota_exceeded" | ...
     retry_info_delay: timedelta | None  # google.rpc.RetryInfo.retryDelay
-    quota_violations: tuple[QuotaViolation, ...]   # google.rpc.QuotaFailure.violations
-    tool_error_messages: tuple[str, ...]           # from OnToolErrorHook (F3)
+    quota_violations: tuple[QuotaViolation, ...]  # google.rpc.QuotaFailure.violations
+    tool_error_messages: tuple[str, ...]  # from OnToolErrorHook (F3)
     finish_reason: str | None
 ```
 

@@ -1,7 +1,6 @@
-"""Capacity probe: cheapest throwaway chat, no conversation_id, counted in budget."""
-
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -135,3 +134,49 @@ async def test_probe_diagnoses_a_harness_that_dies_on_start(tmp_path) -> None:
     assert "Failed to read length from stdout" in message
     # __aexit__ must still run so the orphaned harness Popen is reaped.
     assert built[0].exited is True
+
+
+@pytest.mark.asyncio
+async def test_probe_set_model_and_error_handling(tmp_path: Path) -> None:
+    from google.antigravity.types import AntigravityConnectionError, AntigravityValidationError
+
+    probe = AntigravityCapacityProbe(cwd=str(tmp_path), model="gemini-2.5-flash")
+    probe.set_model("gemini-2.5-flash-lite")
+    assert probe._model == "gemini-2.5-flash-lite"
+
+    # Validation error raises AgentConfigError
+    class _ValidationErrAgent:
+        def __init__(self, config: object) -> None:
+            pass
+
+        async def __aenter__(self) -> _ValidationErrAgent:
+            raise AntigravityValidationError("bad validation")
+
+        async def __aexit__(self, *args: object) -> None:
+            pass
+
+    with (
+        patch(
+            "agyloop.infrastructure.agent.probe.Agent",
+            side_effect=lambda cfg: _ValidationErrAgent(cfg),
+        ),
+        pytest.raises(AgentConfigError, match="bad validation"),
+    ):
+        await probe.probe()
+
+    # Connection error returns outcome from exception
+    class _ConnectionErrAgent:
+        def __init__(self, config: object) -> None:
+            pass
+
+        async def __aenter__(self) -> _ConnectionErrAgent:
+            raise AntigravityConnectionError("disconnected")
+
+        async def __aexit__(self, *args: object) -> None:
+            pass
+
+    with patch(
+        "agyloop.infrastructure.agent.probe.Agent", side_effect=lambda cfg: _ConnectionErrAgent(cfg)
+    ):
+        outcome = await probe.probe()
+        assert outcome.signals.exception_type == "AntigravityConnectionError"

@@ -1,3 +1,4 @@
+import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from unittest.mock import patch
@@ -14,11 +15,10 @@ def fake_now() -> Iterator[datetime]:
         yield FROZEN_NOW
 
 
-import os
-
 @pytest.fixture(autouse=True)
 def _skip_harness_retarget_by_default(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
-    """Unit tests must not copy the 99MB bundled localharness into ~/.cache, and should not inherit ambient AGYLOOP_* env."""
+    """Unit tests must not copy the 99MB bundled localharness into ~/.cache, and should not
+    inherit ambient AGYLOOP_* env."""
     for key in list(os.environ):
         if key.startswith("AGYLOOP_"):
             monkeypatch.delenv(key, raising=False)

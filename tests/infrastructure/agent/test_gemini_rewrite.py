@@ -48,11 +48,15 @@ def test_rewrite_proxy_methods_and_query_string() -> None:
     ) -> tuple[int, bytes, dict[str, str]]:
         del headers
         seen.append((method, path, body))
-        return 200, b'{"ok":true}', {
-            "Content-Type": "application/json",
-            "Transfer-Encoding": "chunked",
-            "Connection": "keep-alive",
-        }
+        return (
+            200,
+            b'{"ok":true}',
+            {
+                "Content-Type": "application/json",
+                "Transfer-Encoding": "chunked",
+                "Connection": "keep-alive",
+            },
+        )
 
     proxy = GeminiRewriteProxy(listen_host="127.0.0.1", transport=transport)
     url = proxy.start()
@@ -63,6 +67,15 @@ def test_rewrite_proxy_methods_and_query_string() -> None:
             method="GET",
         )
         with urllib.request.urlopen(req_get, timeout=5) as response:
+            assert response.status == 200
+
+        # POST
+        req_post = urllib.request.Request(
+            f"{url}/v1beta/models/{WITHDRAWN_INPUT_DETECTION_MODEL}:generateContent",
+            data=b'{"contents":[]}',
+            method="POST",
+        )
+        with urllib.request.urlopen(req_post, timeout=5) as response:
             assert response.status == 200
 
         # PUT
@@ -82,6 +95,7 @@ def test_rewrite_proxy_methods_and_query_string() -> None:
 
         # CONNECT (returns 501 error)
         import http.client
+
         conn = http.client.HTTPConnection("127.0.0.1", int(url.split(":")[-1]), timeout=5)
         conn.request("CONNECT", "example.com:443")
         resp = conn.getresponse()
@@ -90,7 +104,29 @@ def test_rewrite_proxy_methods_and_query_string() -> None:
     finally:
         proxy.stop()
 
-    assert any(m == "GET" and "key=123" in p and WITHDRAWN_INPUT_DETECTION_MODEL not in p for m, p, _ in seen)
+    assert any(
+        m == "GET" and "key=123" in p and WITHDRAWN_INPUT_DETECTION_MODEL not in p
+        for m, p, _ in seen
+    )
+    assert any(m == "POST" and WITHDRAWN_INPUT_DETECTION_MODEL not in p for m, p, _ in seen)
+
+
+def test_rewrite_proxy_with_default_forward_handler() -> None:
+    proxy = GeminiRewriteProxy(
+        listen_host="127.0.0.1", origin_host="127.0.0.1", origin_port=1, origin_tls=False
+    )
+    with patch(
+        "agyloop.infrastructure.agent.gemini_rewrite._forward_http",
+        return_value=(200, b'{"forwarded":true}', {"X-Fwd": "1"}),
+    ):
+        url = proxy.start()
+        try:
+            req = urllib.request.Request(f"{url}/test", method="GET")
+            with urllib.request.urlopen(req, timeout=5) as response:
+                assert response.status == 200
+                assert response.read() == b'{"forwarded":true}'
+        finally:
+            proxy.stop()
 
 
 def test_forward_http_tls_and_plain() -> None:

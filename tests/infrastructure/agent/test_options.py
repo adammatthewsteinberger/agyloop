@@ -143,3 +143,15 @@ def test_local_config_forwards_input_detection_override() -> None:
     names = [m.name for m in (cfg.models or [])]
     assert "gemini-2.5-flash" in names
     assert INPUT_DETECTION_MODEL in names
+
+
+def test_local_config_with_system_prompt_append() -> None:
+    cfg = build_local_config(cwd=".", system_prompt_append="extra domain guidelines")
+    rendered = str(cfg._get_system_instructions())
+    assert "extra domain guidelines" in rendered
+
+
+def test_safe_mode_with_strict_autonomy() -> None:
+    cfg = build_local_config(cwd=".", permission_mode="safe", strict_autonomy=True)
+    assert cfg.capabilities.enabled_tools is not None
+    assert BuiltinTools.ASK_QUESTION not in cfg.capabilities.enabled_tools

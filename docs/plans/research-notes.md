@@ -152,11 +152,13 @@ deliberately tiny — an async context manager wrapping a persistent session:
 import asyncio
 from google.antigravity import Agent, LocalAgentConfig
 
+
 async def main() -> None:
     config = LocalAgentConfig()
     async with Agent(config) as agent:
         response = await agent.chat("What files are in the current directory?")
         print(await response.text())
+
 
 asyncio.run(main())
 ```
@@ -269,12 +271,12 @@ The general policy vocabulary (S1, S2, S6):
 from google.antigravity.hooks.policy import deny, allow, ask_user, enforce
 
 policies = [
-    deny("*"),                                    # block everything by default
-    allow("view_file"),                           # except reading files
+    deny("*"),  # block everything by default
+    allow("view_file"),  # except reading files
     deny("run_command", when=lambda args: "rm" in args.get("CommandLine", "")),
     ask_user("run_command", handler=my_approval_fn),
 ]
-hook = policy.enforce(policies)                   # -> a PreToolCallDecideHook
+hook = policy.enforce(policies)  # -> a PreToolCallDecideHook
 ```
 
 Key properties from S6:
@@ -338,8 +340,8 @@ some tiers, a separate IPM quota dimension — see
 ```python
 class CapabilitiesConfig(pydantic.BaseModel):
     enable_subagents: bool = True
-    enabled_tools: list[BuiltinTools] | None = None      # mutually exclusive
-    disabled_tools: list[BuiltinTools] | None = None     # with enabled_tools
+    enabled_tools: list[BuiltinTools] | None = None  # mutually exclusive
+    disabled_tools: list[BuiltinTools] | None = None  # with enabled_tools
     compaction_threshold: int | None = None
     finish_tool_schema_json: str | None = None
 ```
@@ -478,22 +480,26 @@ feature: "The agent pauses mid-task to ask structured questions with predefined
 options and branches on the response." The types (S4):
 
 ```python
-class AskQuestionOption(BaseModel):     # frozen
+class AskQuestionOption(BaseModel):  # frozen
     id: str
     text: str
 
-class AskQuestionEntry(BaseModel):      # frozen
+
+class AskQuestionEntry(BaseModel):  # frozen
     question: str
     options: list[AskQuestionOption]
     is_multi_select: bool = False
 
-class AskQuestionInteractionSpec(BaseModel):   # frozen
+
+class AskQuestionInteractionSpec(BaseModel):  # frozen
     questions: list[AskQuestionEntry]
+
 
 class QuestionResponse(BaseModel):
     selected_option_ids: list[str] | None = None
     freeform_response: str = ""
     skipped: bool = False
+
 
 class QuestionHookResult(BaseModel):
     responses: list[QuestionResponse]
@@ -608,14 +614,24 @@ the call site.**
 From S4, the complete public error taxonomy:
 
 ```python
-class AntigravityConnectionError(Exception): ...
+class AntigravityConnectionError(Exception):
+    ...
     # connection cannot be established, or fatal protocol-level error
-class AntigravityCancelledError(asyncio.CancelledError): ...
+
+
+class AntigravityCancelledError(asyncio.CancelledError):
+    ...
     # active turn cancelled programmatically
-class AntigravityExecutionError(Exception): ...
+
+
+class AntigravityExecutionError(Exception):
+    ...
     # agent loop terminated on a fatal error (e.g. model call failure,
     # system constraint violation) and cannot continue
-class AntigravityValidationError(Exception): ...
+
+
+class AntigravityValidationError(Exception):
+    ...
     # wraps pydantic.ValidationError at the SDK boundary; carries .message
     # and .errors
 ```
@@ -859,10 +875,10 @@ From S4:
 ```python
 class UsageMetadata(pydantic.BaseModel):
     prompt_token_count: int | None = None
-    cached_content_token_count: int | None = None   # subset of prompt tokens
-    candidates_token_count: int | None = None       # excludes thinking
+    cached_content_token_count: int | None = None  # subset of prompt tokens
+    candidates_token_count: int | None = None  # excludes thinking
     thoughts_token_count: int | None = None
-    total_token_count: int | None = None            # prompt + candidates + thoughts
+    total_token_count: int | None = None  # prompt + candidates + thoughts
 ```
 
 `None` means "not available" (e.g. the step involved no model call); `0` means

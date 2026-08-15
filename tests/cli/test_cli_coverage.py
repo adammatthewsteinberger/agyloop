@@ -1,23 +1,22 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-from typer.testing import CliRunner
-
-from agyloop import bootstrap
 from agyloop.application.dto import RunResult
 from agyloop.application.usecases.doctor import DoctorCheck
-from agyloop.cli.app import app, main
+from agyloop.cli.app import main
 from agyloop.cli.render import render_classification, render_session_list
-from agyloop.domain.capacity import Available, WindowExhausted
+from agyloop.domain.capacity import WindowExhausted
 from agyloop.domain.classify import Classification
-from agyloop.domain.errors import InvalidPlanError, InvalidSessionSelectorError, UnsafeSkipPermissionsError
+from agyloop.domain.errors import (
+    InvalidPlanError,
+    InvalidSessionSelectorError,
+)
 from agyloop.domain.session import SessionRef
 from agyloop.infrastructure.rundir import RunDirectory, runs_root_for
-from tests.test_cli import _invoke, _plain
+from tests.test_cli import _invoke
 
 
 def test_main_invokes_app() -> None:
@@ -72,6 +71,7 @@ def test_runs_and_sessions_empty(tmp_path: Path) -> None:
     mock_ctx = MagicMock()
     mock_ctx.invoked_subcommand = "sub"
     from agyloop.cli.commands.sessions import sessions as sessions_cb
+
     sessions_cb(mock_ctx, cwd=str(tmp_path))
 
 
@@ -94,7 +94,10 @@ def test_resume_command_all_branches(tmp_path: Path) -> None:
     assert "unknown gateway" in res.output.lower()
 
     # Invalid session selector
-    with patch("agyloop.cli.commands.resume.resolve_last_run", side_effect=InvalidSessionSelectorError("no sessions")):
+    with patch(
+        "agyloop.cli.commands.resume.resolve_last_run",
+        side_effect=InvalidSessionSelectorError("no sessions"),
+    ):
         res = _invoke("resume", "--last", "--cwd", str(tmp_path))
         assert res.exit_code == 1
 
@@ -103,28 +106,67 @@ def test_resume_command_all_branches(tmp_path: Path) -> None:
     mock_context.runner = AsyncMock()
 
     # Explicit conversation ID without --last
-    mock_success = RunResult(success=True, reason="completed", session_id="s1", turns_spent=1, dollars_spent=0.5)
-    with patch("agyloop.bootstrap.build_runner", return_value=mock_context), patch("agyloop.cli.commands.resume.resume_explicit", new_callable=AsyncMock, return_value=mock_success):
+    mock_success = RunResult(
+        success=True, reason="completed", session_id="s1", turns_spent=1, dollars_spent=0.5
+    )
+    with (
+        patch("agyloop.bootstrap.build_runner", return_value=mock_context),
+        patch(
+            "agyloop.cli.commands.resume.resume_explicit",
+            new_callable=AsyncMock,
+            return_value=mock_success,
+        ),
+    ):
         res = _invoke("resume", "--conversation", "c123", "--cwd", str(tmp_path))
         assert res.exit_code == 0
         assert "Done: completed" in res.output
 
     # No conversation ID (conversation is None) with default or --last
-    mock_ref = SessionRef(session_id="last_s1", cwd=str(tmp_path), last_modified=datetime.now(UTC), first_prompt_preview="prompt")
-    with patch("agyloop.cli.commands.resume.resolve_last_run", return_value=mock_ref), patch("agyloop.bootstrap.build_runner", return_value=mock_context), patch("agyloop.cli.commands.resume.resume_explicit", new_callable=AsyncMock, return_value=mock_success):
+    mock_ref = SessionRef(
+        session_id="last_s1",
+        cwd=str(tmp_path),
+        last_modified=datetime.now(UTC),
+        first_prompt_preview="prompt",
+    )
+    with (
+        patch("agyloop.cli.commands.resume.resolve_last_run", return_value=mock_ref),
+        patch("agyloop.bootstrap.build_runner", return_value=mock_context),
+        patch(
+            "agyloop.cli.commands.resume.resume_explicit",
+            new_callable=AsyncMock,
+            return_value=mock_success,
+        ),
+    ):
         res = _invoke("resume", "--cwd", str(tmp_path))
         assert res.exit_code == 0
         assert "Done: completed" in res.output
 
     # Explicit conversation ID WITH --last
-    with patch("agyloop.cli.commands.resume.resolve_last_run", return_value=mock_ref), patch("agyloop.bootstrap.build_runner", return_value=mock_context), patch("agyloop.cli.commands.resume.resume_explicit", new_callable=AsyncMock, return_value=mock_success):
+    with (
+        patch("agyloop.cli.commands.resume.resolve_last_run", return_value=mock_ref),
+        patch("agyloop.bootstrap.build_runner", return_value=mock_context),
+        patch(
+            "agyloop.cli.commands.resume.resume_explicit",
+            new_callable=AsyncMock,
+            return_value=mock_success,
+        ),
+    ):
         res = _invoke("resume", "--conversation", "c123", "--last", "--cwd", str(tmp_path))
         assert res.exit_code == 0
         assert "Done: completed" in res.output
 
     # Resume failure result
-    failed_result = RunResult(success=False, reason="session dead", session_id="s1", turns_spent=1, dollars_spent=0.5)
-    with patch("agyloop.bootstrap.build_runner", return_value=mock_context), patch("agyloop.cli.commands.resume.resume_explicit", new_callable=AsyncMock, return_value=failed_result):
+    failed_result = RunResult(
+        success=False, reason="session dead", session_id="s1", turns_spent=1, dollars_spent=0.5
+    )
+    with (
+        patch("agyloop.bootstrap.build_runner", return_value=mock_context),
+        patch(
+            "agyloop.cli.commands.resume.resume_explicit",
+            new_callable=AsyncMock,
+            return_value=failed_result,
+        ),
+    ):
         res = _invoke("resume", "--conversation", "c123", "--cwd", str(tmp_path))
         assert res.exit_code == 1
         assert "Run failed: session dead" in res.output
@@ -141,7 +183,9 @@ def test_logs_command(tmp_path: Path) -> None:
     with patch("agyloop.bootstrap.tail_events") as mock_tail:
         res = _invoke("logs", "--cwd", str(tmp_path), "--run-id", run_id, "--chatter")
         assert res.exit_code == 0
-        mock_tail.assert_called_once_with(tmp_path.resolve(), run_id=run_id, follow=False, chatter_only=True)
+        mock_tail.assert_called_once_with(
+            tmp_path.resolve(), run_id=run_id, follow=False, chatter_only=True
+        )
 
     with patch("agyloop.bootstrap.tail_events", side_effect=KeyboardInterrupt):
         res = _invoke("logs", "--cwd", str(tmp_path), "--run-id", run_id)
@@ -193,7 +237,9 @@ def test_watch_command(tmp_path: Path) -> None:
     with patch("agyloop.bootstrap.run_stream_ui") as mock_ui:
         res = _invoke("watch", "--cwd", str(tmp_path), "--run-id", run_id, "--stream")
         assert res.exit_code == 0
-        mock_ui.assert_called_once_with(tmp_path.resolve(), run_id=run_id, follow=True, replay=False, speed=1.0)
+        mock_ui.assert_called_once_with(
+            tmp_path.resolve(), run_id=run_id, follow=True, replay=False, speed=1.0
+        )
 
 
 def test_savepoints_command(tmp_path: Path) -> None:
@@ -207,7 +253,13 @@ def test_savepoints_command(tmp_path: Path) -> None:
         assert "No save points." in res.output
 
     mock_points = [
-        {"n": 1, "sha": "1234567890abcdef", "label": "turn-1", "at": "2026-08-13T12:00:00Z", "ref": "refs/agyloop/savepoints/1"}
+        {
+            "n": 1,
+            "sha": "1234567890abcdef",
+            "label": "turn-1",
+            "at": "2026-08-13T12:00:00Z",
+            "ref": "refs/agyloop/savepoints/1",
+        }
     ]
     with patch("agyloop.bootstrap.list_savepoints", return_value=mock_points):
         res = _invoke("savepoints", "--cwd", str(tmp_path))
@@ -241,13 +293,23 @@ def test_unwind_command(tmp_path: Path) -> None:
     res = _invoke("unwind", "--to", "1", "--cwd", str(tmp_path), "--run-id", "r1")
     assert res.exit_code == 1
 
-    with patch("agyloop.bootstrap.unwind_savepoint", return_value={"to_n": 1, "restored_sha": "abcdef1234567890", "backup_ref": "refs/heads/backup"}):
+    with patch(
+        "agyloop.bootstrap.unwind_savepoint",
+        return_value={
+            "to_n": 1,
+            "restored_sha": "abcdef1234567890",
+            "backup_ref": "refs/heads/backup",
+        },
+    ):
         res = _invoke("unwind", "--to", "1", "--cwd", str(tmp_path))
         assert res.exit_code == 0
         assert "Restored save point #1" in res.output
         assert "Backup ref:" in res.output
 
-    with patch("agyloop.bootstrap.unwind_savepoint", return_value={"to_n": 1, "restored_sha": "abcdef1234567890", "backup_ref": None}):
+    with patch(
+        "agyloop.bootstrap.unwind_savepoint",
+        return_value={"to_n": 1, "restored_sha": "abcdef1234567890", "backup_ref": None},
+    ):
         res = _invoke("unwind", "--to", "1", "--cwd", str(tmp_path))
         assert res.exit_code == 0
         assert "Restored save point #1" in res.output
@@ -255,7 +317,10 @@ def test_unwind_command(tmp_path: Path) -> None:
 
 def test_doctor_command_failing_and_subcommand(tmp_path: Path) -> None:
     failing_check = DoctorCheck(name="auth", passed=False, detail="missing key")
-    with patch("agyloop.bootstrap.build_doctor_environment"), patch("agyloop.application.usecases.doctor.run_doctor", return_value=[failing_check]):
+    with (
+        patch("agyloop.bootstrap.build_doctor_environment"),
+        patch("agyloop.application.usecases.doctor.run_doctor", return_value=[failing_check]),
+    ):
         res = _invoke("doctor")
         assert res.exit_code == 1
         assert "[FAIL]" in res.output
@@ -265,7 +330,18 @@ def test_doctor_command_failing_and_subcommand(tmp_path: Path) -> None:
         assert res.exit_code == 0
         assert "harness repaired" in res.output
 
-    res = _invoke("doctor", "explain-classify", "--retry-after", "10", "--error-code", "rate_limit_exceeded", "--exception-type", "ResourceExhausted", "--quota-metric", "rpm")
+    res = _invoke(
+        "doctor",
+        "explain-classify",
+        "--retry-after",
+        "10",
+        "--error-code",
+        "rate_limit_exceeded",
+        "--exception-type",
+        "ResourceExhausted",
+        "--quota-metric",
+        "rpm",
+    )
     assert res.exit_code == 0
     assert "rung=" in res.output
 
@@ -280,18 +356,25 @@ def test_run_command_failure_and_invalid_gateway(tmp_path: Path) -> None:
     assert "unknown gateway" in res.output.lower()
 
     # Invalid plan file
-    with patch("agyloop.cli.commands.run.parse_plan_file", side_effect=InvalidPlanError("bad plan")):
+    with patch(
+        "agyloop.cli.commands.run.parse_plan_file", side_effect=InvalidPlanError("bad plan")
+    ):
         res = _invoke("run", str(plan_file), "--cwd", str(tmp_path))
         assert res.exit_code == 1
         assert "Invalid plan file" in res.output
 
     # Run failure result
-    failed_result = RunResult(success=False, reason="budget blown", session_id="s1", turns_spent=1, dollars_spent=0.5)
-    with patch("agyloop.cli.commands.run.run_from_plan_file", new_callable=AsyncMock, return_value=failed_result):
+    failed_result = RunResult(
+        success=False, reason="budget blown", session_id="s1", turns_spent=1, dollars_spent=0.5
+    )
+    with patch(
+        "agyloop.cli.commands.run.run_from_plan_file",
+        new_callable=AsyncMock,
+        return_value=failed_result,
+    ):
         res = _invoke("run", str(plan_file), "--cwd", str(tmp_path))
         assert res.exit_code == 1
         assert "Run failed: budget blown" in res.output
-
 
 
 def test_render_classification_and_session_list() -> None:
@@ -306,7 +389,12 @@ def test_render_classification_and_session_list() -> None:
     # Session list empty vs non-empty
     assert "No agyloop runs found" in render_session_list([])
 
-    ref = SessionRef(session_id="s1", cwd="/tmp", last_modified=datetime(2026, 8, 13, 12, 0, tzinfo=UTC), first_prompt_preview="hello world")
+    ref = SessionRef(
+        session_id="s1",
+        cwd="/tmp",
+        last_modified=datetime(2026, 8, 13, 12, 0, tzinfo=UTC),
+        first_prompt_preview="hello world",
+    )
     rendered_sessions = render_session_list([ref])
     assert "s1" in rendered_sessions
     assert "hello world" in rendered_sessions

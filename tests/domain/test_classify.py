@@ -10,7 +10,12 @@ from agyloop.domain.capacity import (
     TransientThrottle,
     WindowExhausted,
 )
-from agyloop.domain.classify import QuotaViolation, TurnSignals, classify, looks_like_operator_cancel
+from agyloop.domain.classify import (
+    QuotaViolation,
+    TurnSignals,
+    classify,
+    looks_like_operator_cancel,
+)
 from agyloop.domain.waiting import next_pacific_midnight
 
 # --- Brief tests (verbatim) ---
