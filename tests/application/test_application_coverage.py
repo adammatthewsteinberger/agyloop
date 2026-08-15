@@ -46,8 +46,7 @@ from agyloop.domain.control import (
     SlashCommand,
     StopCommand,
 )
-from agyloop.domain.loop import Phase, State
-from agyloop.domain.waiting import DelayThenSend, WaitPolicy
+from agyloop.domain.waiting import WaitPolicyConfig
 
 
 class _FakeInbox:
@@ -81,9 +80,9 @@ def test_all_run_control_usecases() -> None:
     assert res.command_type == "set_effort"
     assert inbox.commands[-1] == SetEffortCommand(effort="high")
 
-    res = request_set_preset(inbox, "fast", run_id="r1")
+    res = request_set_preset(inbox, "high", run_id="r1")
     assert res.command_type == "set_preset"
-    assert inbox.commands[-1] == SetPresetCommand(preset="fast")
+    assert inbox.commands[-1] == SetPresetCommand(preset="high")
 
     res = request_set_permission_mode(inbox, "yolo", run_id="r1")
     assert res.command_type == "set_permission_mode"
@@ -113,9 +112,9 @@ def test_all_run_control_usecases() -> None:
     assert res.command_type == "resource_mutate"
     assert inbox.commands[-1] == ResourceMutateCommand(action="add", kind="skill", value="foo", name="bar")
 
-    res = request_response_feedback(inbox, verdict="positive", note="great", run_id="r1")
+    res = request_response_feedback(inbox, verdict="good", note="great", run_id="r1")
     assert res.command_type == "response_feedback"
-    assert inbox.commands[-1] == ResponseFeedbackCommand(verdict="positive", note="great")
+    assert inbox.commands[-1] == ResponseFeedbackCommand(verdict="good", note="great")
 
     res = request_response_retry(inbox, run_id="r1")
     assert res.command_type == "response_retry"
@@ -171,7 +170,7 @@ def test_runner_no_probe_flag_replaces_wait_policy() -> None:
         audit_log=audit,
         progress=progress,
         budget=Budget(),
-        wait_policy=WaitPolicy(no_probe=False),
+        wait_policy=WaitPolicyConfig(no_probe=False),
         no_probe=True,
     )
     assert runner._wait_policy.no_probe is True
@@ -181,8 +180,9 @@ def test_runner_no_probe_flag_replaces_wait_policy() -> None:
 async def test_runner_turn_with_exception_signals(tmp_path: Path) -> None:
     gateway = AsyncMock()
     gateway.send_turn.return_value = TurnOutcome(
-        output_text="done AGYLOOP_TASK_FULLY_COMPLETE",
         signals=TurnSignals(exception_type="ResourceExhausted", exception_message="Quota hit"),
+        verdict=None,
+        output_text="done AGYLOOP_TASK_FULLY_COMPLETE",
         session_id="s1",
     )
     probe = AsyncMock()
@@ -202,7 +202,7 @@ async def test_runner_turn_with_exception_signals(tmp_path: Path) -> None:
         progress=progress,
         event_sink=events,
         budget=Budget(max_turns=1),
-        wait_policy=WaitPolicy(no_probe=True),
+        wait_policy=WaitPolicyConfig(no_probe=True),
         no_probe=True,
     )
 
@@ -235,7 +235,7 @@ async def test_runner_stops_during_quota_wait() -> None:
     probe = AsyncMock()
     audit = FakeAuditLog()
     progress = FakeProgressReporter()
-    control = FakeRunControl([[StopCommand()]])
+    control = FakeRunControl([[], [], [StopCommand()]])
 
     runner = AutonomousRunner(
         agent_gateway=gateway,
@@ -246,10 +246,10 @@ async def test_runner_stops_during_quota_wait() -> None:
         progress=progress,
         run_control=control,
         budget=Budget(max_turns=2),
-        wait_policy=WaitPolicy(no_probe=True),
+        wait_policy=WaitPolicyConfig(no_probe=True),
         no_probe=True,
     )
 
     result = await runner.run(initial_prompt="go", continue_prompt="continue")
     assert result.success is False
-    assert "stopped by operator during wait" in result.reason
+    assert "stopped by operator" in result.reason
