@@ -4,11 +4,30 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+RUN_ID_PATTERN = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]{0,127}\Z")
+
+
+def validate_run_id(run_id: str) -> str:
+    """Reject run ids that would escape or hide inside ``runs/``.
+
+    A caller-supplied run id becomes a path segment, so ``../..`` or an
+    absolute path would write outside the runs root. Leading dots are refused
+    too, so a run can never be created hidden.
+    """
+    candidate = run_id.strip()
+    if not RUN_ID_PATTERN.match(candidate):
+        raise ValueError(
+            f"invalid run id {run_id!r}: must be 1-128 characters of "
+            "letters, digits, '.', '_' or '-', and start with a letter or digit"
+        )
+    return candidate
 
 
 @dataclass
@@ -70,8 +89,26 @@ class RunDirectory:
         self.bus_path = root / "bus.jsonl"
 
     @classmethod
-    def create(cls, runs_root: Path, *, cwd: Path, plan_path: Path | None = None) -> RunDirectory:
-        run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+    def create(
+        cls,
+        runs_root: Path,
+        *,
+        cwd: Path,
+        plan_path: Path | None = None,
+        run_id: str | None = None,
+    ) -> RunDirectory:
+        """Create a fresh run directory.
+
+        ``run_id`` lets an orchestrator name the run up front instead of
+        scraping it from stderr after the process exits. That matters when
+        several runs are in flight at once: "the newest directory under
+        runs/" is a race, and there is no other way to attach to a run while
+        it is still going.
+        """
+        if run_id is None:
+            run_id = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+        else:
+            run_id = validate_run_id(run_id)
         directory = cls(runs_root / run_id)
         directory.root.mkdir(parents=True, exist_ok=False)
         directory.inbox.mkdir()

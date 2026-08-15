@@ -20,6 +20,13 @@ def run(
             help="Markdown plan file to seed a fresh Antigravity session.",
         ),
     ],
+    run_id: Annotated[
+        str | None,
+        typer.Option(
+            "--run-id",
+            help="Name this run instead of generating an id (lets a supervisor attach mid-run).",
+        ),
+    ] = None,
     cwd_dir: Annotated[
         Path | None,
         typer.Option(
@@ -96,6 +103,7 @@ def run(
     """Seed a brand-new Antigravity session from PLAN_FILE and run it unattended."""
     _run(
         plan_file=plan_file,
+        run_id=run_id,
         cwd_dir=cwd_dir,
         model=model,
         max_turns=max_turns,
@@ -120,6 +128,7 @@ def run(
 async def _run(
     *,
     plan_file: Path,
+    run_id: str | None,
     cwd_dir: Path | None,
     model: str | None,
     max_turns: int | None,
@@ -164,6 +173,7 @@ async def _run(
     )
     context = bootstrap.build_runner(
         cwd=cwd,
+        run_id=run_id,
         plan=plan,
         plan_path=plan_file,
         model=model,

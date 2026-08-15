@@ -256,6 +256,7 @@ def build_runner(
     max_dollars: float | None = None,
     preset: str | None = None,
     effort: str | None = None,
+    run_id: str | None = None,
 ) -> RunnerContext:
     config = load_config(
         cwd=cwd,
@@ -274,7 +275,11 @@ def build_runner(
     )
     run_dir = _run_directory_for_conversation(cwd, conversation_id) if resume else None
     if run_dir is None:
-        run_dir = RunDirectory.create(runs_root_for(cwd), cwd=cwd, plan_path=plan_path)
+        run_dir = RunDirectory.create(
+            runs_root_for(cwd), cwd=cwd, plan_path=plan_path, run_id=run_id
+        )
+    # Rebind to the resolved id: identical to the supplied one when the caller
+    # named the run, the freshly minted one otherwise.
     run_id = run_dir.read_meta().run_id
     trace_id = str(uuid.uuid4())
     parsed_mode = parse_user_permission_mode(config.permission_mode)
