@@ -29,7 +29,7 @@ hand it a plan and walk away.
 
 ## Project status
 
-Public **0.1.0**. Install from [PyPI](https://pypi.org/project/agyloop/).
+Public **0.2.0**. Install from [PyPI](https://pypi.org/project/agyloop/).
 The core loop, resilient waiting, CLI gateway, git savepoints, generated
 Developer REST CLI, and this documentation site ship in that release.
 
