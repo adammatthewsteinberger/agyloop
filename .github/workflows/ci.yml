@@ -127,9 +127,8 @@ jobs:
     steps:
       - uses: actions/checkout@v7.0.1
       - uses: astral-sh/setup-uv@v3
-        with:
-          enable-cache: true
-      - run: uv lock --check
+      - run: uv lock
+      - run: git diff uv.lock
 
   build:
     name: Package builds and is installable
