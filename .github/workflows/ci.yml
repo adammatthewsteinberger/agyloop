@@ -129,8 +129,7 @@ jobs:
       - uses: astral-sh/setup-uv@v3
         with:
           version: "0.12.5"
-      - run: uv lock
-      - run: git diff uv.lock
+      - run: uv lock --check
 
   build:
     name: Package builds and is installable
