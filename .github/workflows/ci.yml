@@ -121,6 +121,16 @@ jobs:
       - run: pip install -e ".[docs]"
       - run: mkdocs build --strict
 
+  uv-lock:
+    name: uv.lock is in sync with pyproject.toml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+      - run: uv lock --check
+
   build:
     name: Package builds and is installable
     runs-on: ubuntu-latest
