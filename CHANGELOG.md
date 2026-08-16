@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.5.0](https://github.com/adammatthewsteinberger/agyloop/compare/agyloop-v0.4.0...agyloop-v0.5.0) (2026-08-16)
+## [0.4.0](https://github.com/adammatthewsteinberger/agyloop/compare/agyloop-v0.3.0...agyloop-v0.4.0) (2026-08-16)
 
 
 ### Features
