@@ -21,6 +21,12 @@ from google.antigravity.types import (
 
 from agyloop.application.dto import TurnOutcome
 from agyloop.domain.classify import TurnSignals, looks_like_operator_cancel
+
+try:
+    from websockets.exceptions import ConnectionClosed
+except ImportError:
+    ConnectionClosed = type("ConnectionClosed", (Exception,), {})  # type: ignore[misc,assignment]
+
 from agyloop.domain.errors import AgentConfigError
 from agyloop.domain.model_profile import ModelEffortProfile
 from agyloop.domain.permission import (
@@ -148,6 +154,8 @@ class AntigravityAgentGateway:
             await self._reconnect()
 
     async def _ensure_started(self) -> Agent:
+        if self._agent is not None and not getattr(self._agent, "is_started", True):
+            await self.close()
         if self._agent is None:
             prepare_harness()
             agent = Agent(self._config())
@@ -192,12 +200,19 @@ class AntigravityAgentGateway:
             AntigravityCancelledError,
             AntigravityExecutionError,
             AntigravityConnectionError,
+            ConnectionClosed,
+            ConnectionResetError,
+            BrokenPipeError,
+            EOFError,
+            RuntimeError,
         ) as exc:
             if self._should_degrade_resume(exc):
                 self._conversation_id = None
                 self._resume_degraded = True
                 await self.close()
                 return await self.send_turn(self._seeded_prompt(prompt_text))
+            if isinstance(exc, (ConnectionClosed, ConnectionResetError, BrokenPipeError, EOFError)):
+                exc = AntigravityConnectionError(str(exc))
             if isinstance(exc, AntigravityValidationError):
                 raise AgentConfigError(str(exc)) from exc
             if agent is None:
@@ -215,7 +230,8 @@ class AntigravityAgentGateway:
             return False
         text = str(exc).lower()
         return "conversation" in text and any(
-            marker in text for marker in ("not found", "unknown", "invalid", "expired")
+            marker in text
+            for marker in ("not found", "unknown", "invalid", "expired", "cannot resume")
         )
 
     def _seeded_prompt(self, prompt_text: str) -> str:

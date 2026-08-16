@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from hypothesis import given
+from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from agyloop.domain.capacity import (
@@ -10,7 +10,12 @@ from agyloop.domain.capacity import (
     TransientThrottle,
     WindowExhausted,
 )
-from agyloop.domain.classify import QuotaViolation, TurnSignals, classify
+from agyloop.domain.classify import (
+    QuotaViolation,
+    TurnSignals,
+    classify,
+    looks_like_operator_cancel,
+)
 from agyloop.domain.waiting import next_pacific_midnight
 
 # --- Brief tests (verbatim) ---
@@ -342,6 +347,7 @@ def test_quota_metric_rpm_outranks_rate_limit_exceeded() -> None:
 
 @given(st.text(max_size=40))
 def test_spend_marker_never_yields_resets_at(prefix: str) -> None:
+    assume(not looks_like_operator_cancel(prefix))
     state = classify(
         TurnSignals(
             http_status=429,
@@ -358,6 +364,7 @@ def test_spend_marker_never_yields_resets_at(prefix: str) -> None:
     st.one_of(st.none(), st.sampled_from(["rpm", "rpd", "tpm", "ipm"])),
 )
 def test_resource_exhausted_never_available(message: str | None, quota_metric: str | None) -> None:
+    assume(not looks_like_operator_cancel(message))
     state = classify(
         TurnSignals(
             http_status=429,

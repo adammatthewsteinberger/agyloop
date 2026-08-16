@@ -11,6 +11,7 @@ from typing import Any
 import structlog
 from structlog.stdlib import BoundLogger, LoggerFactory, ProcessorFormatter
 
+from agyloop.domain.verbosity import LogPlan
 from agyloop.infrastructure.redact import redact
 
 
@@ -140,3 +141,20 @@ class StructlogAppLogger:
 
     def error(self, event: str, **kwargs: Any) -> None:
         self._log.error(event, **kwargs)
+
+
+# Chatty libraries that are noise unless the operator explicitly widened the
+# net with -vv.
+_THIRD_PARTY_LOGGERS = ("google", "httpx", "httpcore", "anyio", "asyncio", "textual")
+
+
+def apply_third_party_level(plan: LogPlan) -> None:
+    """Raise third-party loggers' floor unless -vv asked for them.
+
+    Raising the floor rather than removing their handlers keeps a genuine
+    library error visible at any verbosity.
+    """
+    level_value = getattr(logging, plan.level, logging.INFO)
+    target = level_value if plan.include_third_party else max(level_value, logging.WARNING)
+    for name in _THIRD_PARTY_LOGGERS:
+        logging.getLogger(name).setLevel(target)

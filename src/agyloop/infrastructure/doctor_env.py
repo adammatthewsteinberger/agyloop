@@ -8,7 +8,7 @@ import subprocess  # nosec B404 - fixed-argument `agy --version` only
 from collections.abc import Mapping
 from pathlib import Path
 
-from agyloop.application.usecases.doctor import AuthResolution
+from agyloop.application.interfaces import AuthResolution
 from agyloop.infrastructure.agent.autonomy import autonomy_hooks
 from agyloop.infrastructure.agent.options import build_local_config
 from agyloop.infrastructure.agent.policies import config_has_nonblocking_policies

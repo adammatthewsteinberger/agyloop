@@ -116,5 +116,24 @@ def test_unsafe_skip_warning_cites_issue_36() -> None:
     assert ISSUE_36_URL in UNSAFE_SKIP_WARNING or "antigravity-cli" in UNSAFE_SKIP_WARNING
 
 
+def test_cli_argv_effective_uid_and_allowlist_child_and_sandbox_false(tmp_path: Path) -> None:
+    from agyloop.infrastructure.agent.cli_argv import _effective_uid, _is_allowlisted
+
+    # geteuid None
+    with patch("agyloop.infrastructure.agent.cli_argv.getattr", return_value=None):
+        assert _effective_uid() == 1
+
+    # allowlist child of parent
+    child = tmp_path / "subdir" / "project"
+    child.mkdir(parents=True)
+    assert _is_allowlisted(child, [str(tmp_path)]) is True
+
+    # build_agy_argv with sandbox=False
+    inv = build_agy_argv(prompt="hello", cwd=tmp_path, sandbox=False)
+    assert "--sandbox" not in inv.argv
+    assert "--dangerously-skip-permissions" not in inv.argv
+    assert inv.settings["toolPermission"] == "proceed-in-sandbox"
+
+
 def _init_git(repo: Path) -> None:
     (repo / ".git").mkdir()

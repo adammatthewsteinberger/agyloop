@@ -1,12 +1,12 @@
-"""Capacity probe: cheapest throwaway chat, no conversation_id, counted in budget."""
-
 from __future__ import annotations
 
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from google.antigravity.types import BuiltinTools
 
+from agyloop.domain.errors import AgentConfigError
 from agyloop.infrastructure.agent.options import build_local_config
 from agyloop.infrastructure.agent.probe import (
     AntigravityCapacityProbe,
@@ -95,3 +95,88 @@ async def test_probe_issues_single_chat_without_conversation_id(
     assert len(fake_probe_agent.prompts) == 1
     assert fake_probe_agent.closed is True
     assert outcome.session_id is None
+
+
+class _HarnessDiesOnStartAgent:
+    """Reproduces the SDK failure when the local harness exits without writing
+    its 4-byte length header."""
+
+    def __init__(self, config: object) -> None:
+        self.config = config
+        self.exited = False
+
+    async def __aenter__(self) -> _HarnessDiesOnStartAgent:
+        raise RuntimeError("Failed to read length from stdout. Stderr: ")
+
+    async def __aexit__(self, *args: object) -> None:
+        self.exited = True
+
+
+@pytest.mark.asyncio
+async def test_probe_diagnoses_a_harness_that_dies_on_start(tmp_path) -> None:
+    built: list[_HarnessDiesOnStartAgent] = []
+
+    def _factory(config: object) -> _HarnessDiesOnStartAgent:
+        agent = _HarnessDiesOnStartAgent(config)
+        built.append(agent)
+        return agent
+
+    probe = AntigravityCapacityProbe(cwd=str(tmp_path))
+    with (
+        patch("agyloop.infrastructure.agent.probe.Agent", side_effect=_factory),
+        pytest.raises(AgentConfigError) as excinfo,
+    ):
+        await probe.probe()
+
+    message = str(excinfo.value)
+    assert "harness failed to start" in message
+    assert "--gateway cli" in message
+    assert "Failed to read length from stdout" in message
+    # __aexit__ must still run so the orphaned harness Popen is reaped.
+    assert built[0].exited is True
+
+
+@pytest.mark.asyncio
+async def test_probe_set_model_and_error_handling(tmp_path: Path) -> None:
+    from google.antigravity.types import AntigravityConnectionError, AntigravityValidationError
+
+    probe = AntigravityCapacityProbe(cwd=str(tmp_path), model="gemini-2.5-flash")
+    probe.set_model("gemini-2.5-flash-lite")
+    assert probe._model == "gemini-2.5-flash-lite"
+
+    # Validation error raises AgentConfigError
+    class _ValidationErrAgent:
+        def __init__(self, config: object) -> None:
+            pass
+
+        async def __aenter__(self) -> _ValidationErrAgent:
+            raise AntigravityValidationError("bad validation")
+
+        async def __aexit__(self, *args: object) -> None:
+            pass
+
+    with (
+        patch(
+            "agyloop.infrastructure.agent.probe.Agent",
+            side_effect=lambda cfg: _ValidationErrAgent(cfg),
+        ),
+        pytest.raises(AgentConfigError, match="bad validation"),
+    ):
+        await probe.probe()
+
+    # Connection error returns outcome from exception
+    class _ConnectionErrAgent:
+        def __init__(self, config: object) -> None:
+            pass
+
+        async def __aenter__(self) -> _ConnectionErrAgent:
+            raise AntigravityConnectionError("disconnected")
+
+        async def __aexit__(self, *args: object) -> None:
+            pass
+
+    with patch(
+        "agyloop.infrastructure.agent.probe.Agent", side_effect=lambda cfg: _ConnectionErrAgent(cfg)
+    ):
+        outcome = await probe.probe()
+        assert outcome.signals.exception_type == "AntigravityConnectionError"

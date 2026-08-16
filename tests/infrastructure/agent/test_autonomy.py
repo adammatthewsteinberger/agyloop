@@ -97,3 +97,32 @@ async def test_questions_request_carries_deny_guidance() -> None:
     assert not answer.unanswered
     assert answer.multiple_choice_answer.freeform_response == ASK_QUESTION_DENY_MESSAGE
     assert list(answer.multiple_choice_answer.selected_choice_indices) == []
+
+
+def test_tool_name_and_command_line_helpers() -> None:
+    from unittest.mock import MagicMock
+
+    from agyloop.infrastructure.agent.autonomy import (
+        _command_line_from_args,
+        _is_destructive_command,
+        _tool_name,
+        build_autonomy_policies,
+    )
+
+    # Plain string name
+    data = MagicMock()
+    data.name = "custom_tool"
+    assert _tool_name(data) == "custom_tool"
+
+    # Command line variations
+    assert _command_line_from_args({"CommandLine": "rm -rf /"}) == "rm -rf /"
+    assert _command_line_from_args({"command": "git clean -fdx"}) == "git clean -fdx"
+    assert _command_line_from_args({"other": 123}) == ""
+
+    # Destructive commands detection
+    assert _is_destructive_command({"CommandLine": "rm -rf /"}) is True
+    assert _is_destructive_command({"CommandLine": "git status"}) is False
+
+    # build_autonomy_policies yolo mode
+    yolo_policies = build_autonomy_policies(cwd=".", permission_mode="yolo")
+    assert len(yolo_policies) == 1

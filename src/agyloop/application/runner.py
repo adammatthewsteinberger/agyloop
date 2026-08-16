@@ -56,6 +56,14 @@ from agyloop.domain.control import (
     StopCommand,
     stop_outranks,
 )
+from agyloop.domain.forecast import (
+    BurnRate,
+    CapacityForecast,
+    WindDownPolicy,
+    forecast,
+    should_wind_down,
+)
+from agyloop.domain.handoff_marker import HandoffMarker
 from agyloop.domain.loop import (
     DelayThenSend,
     Finish,
@@ -63,6 +71,7 @@ from agyloop.domain.loop import (
     RunState,
     ScheduleProbe,
     SendTurn,
+    WindDownAndFinish,
     decide_after_probe,
     decide_after_turn,
     decide_preflight,
@@ -265,6 +274,8 @@ class AutonomousRunner:
         save_points: SavePointStore | None = None,
         plan: WorkPlan | None = None,
         stop_summary_writer: Any | None = None,
+        handoff_marker_writer: Any | None = None,
+        wind_down_policy: WindDownPolicy | None = None,
         meta_updater: Any | None = None,
         events_path: str = "",
         state_bus: StateBus | None = None,
@@ -304,6 +315,9 @@ class AutonomousRunner:
         self._save_points = save_points or _NullSavePointStore()
         self._plan = plan
         self._stop_summary_writer = stop_summary_writer
+        self._handoff_marker_writer = handoff_marker_writer
+        self._wind_down_policy = wind_down_policy or WindDownPolicy()
+        self._last_stop_summary_path: str | None = None
         self._meta_updater = meta_updater
         self._events_path = events_path
         self._state_bus = state_bus or _NullStateBus()
@@ -573,14 +587,26 @@ class AutonomousRunner:
                         ),
                     )
 
+                    now = self._clock.now()
+                    projection = self._project_capacity(state, capacity=capacity, now=now)
+                    wind_down = (
+                        should_wind_down(
+                            projection,
+                            self._wind_down_policy,
+                            turns_spent=state.ledger.turns_spent + 1,
+                        )
+                        if projection is not None
+                        else None
+                    )
                     state, decision = decide_after_turn(
                         state,
                         capacity=capacity,
                         verdict=verdict,
-                        now=self._clock.now(),
+                        now=now,
                         config=self._wait_policy,
                         tokens=tokens,
                         dollars=dollars,
+                        wind_down=wind_down,
                     )
                     if (
                         isinstance(decision, SendTurn)
@@ -763,6 +789,10 @@ class AutonomousRunner:
                     # then probe). Same unreachable-by-construction pattern as
                     # domain.loop.Phase.PROBING; see that module's own exhaustiveness
                     # asserts for the precedent this follows.
+                    if isinstance(decision, WindDownAndFinish):
+                        return await self._finish_wound_down(
+                            state, session_id=session_id, decision=decision
+                        )
                     assert isinstance(decision, Finish)  # nosec B101
                     await self._gateway.close()
                     self._progress.finished(success=decision.success, reason=decision.reason)
@@ -1248,6 +1278,87 @@ class AutonomousRunner:
             chunk_end = min(until, now + _SLEEP_CHUNK)
             await self._sleeper.sleep_until(chunk_end)
 
+    def _project_capacity(
+        self, state: RunState, *, capacity: CapacityState, now: datetime
+    ) -> CapacityForecast | None:
+        """Forecast remaining capacity, but only while the vendor says we are
+        not already blocked.
+
+        Returning None for every non-Available state is what keeps vendor
+        utilization from ever influencing whether a turn is *sent*: once a real
+        rejection has landed, the reactive path owns it.
+        """
+        if not isinstance(capacity, Available):
+            return None
+        turns = state.ledger.turns_spent + 1
+        projection = forecast(
+            capacity,
+            turns_spent=turns,
+            max_turns=state.ledger.budget.max_turns,
+            dollars_spent=state.ledger.dollars_spent,
+            max_dollars=state.ledger.budget.max_dollars,
+            observed=BurnRate(turns=turns, elapsed_seconds=0.0, dollars=state.ledger.dollars_spent),
+            capacity_as_of=now,
+            now=now,
+            policy=self._wind_down_policy,
+        )
+        self._events.emit(
+            "capacity.forecast",
+            {
+                "headroom": projection.binding.fraction,
+                "source": projection.binding.source,
+                "turns_until_exhaustion": projection.turns_until_exhaustion,
+                "seconds_until_reset": projection.seconds_until_reset,
+            },
+        )
+        return projection
+
+    async def _finish_wound_down(
+        self, state: RunState, *, session_id: str | None, decision: WindDownAndFinish
+    ) -> RunResult:
+        """Stop early, on purpose, leaving a successor everything it needs.
+
+        The write order is load-bearing. Save point, then summary, then the
+        bundled snapshot, then meta, and only then the marker -- so that if
+        handoff.json exists, every artifact it names exists. A process killed
+        part-way through leaves no marker at all, and a supervisor falls back to
+        the reactive path it used before.
+        """
+        result = await self._finish_stopped(
+            state, session_id=session_id, reason=f"wind-down: {decision.reason}"
+        )
+        binding = decision.forecast.binding
+        points = self._save_points.list_points(self._run_id)
+        latest = points[-1] if points else None
+        marker = HandoffMarker(
+            run_id=self._run_id,
+            reason=decision.reason,
+            produced_at=self._clock.now(),
+            headroom=binding.fraction,
+            headroom_source=binding.source,
+            resets_at=binding.resets_at,
+            stop_summary_path=self._last_stop_summary_path,
+            savepoint_ref=latest.ref if latest else None,
+            savepoint_sha=latest.sha if latest else None,
+            session_id=session_id,
+            turns_spent=state.ledger.turns_spent,
+            dollars_spent=state.ledger.dollars_spent,
+            remaining_work=self._last_remaining_work,
+        )
+        if self._handoff_marker_writer is not None:
+            self._handoff_marker_writer(marker)
+        self._events.emit(
+            "wind_down.finished",
+            {"reason": decision.reason, "headroom": binding.fraction, "source": binding.source},
+        )
+        self._log.info(
+            "run.wound_down",
+            reason=decision.reason,
+            headroom=binding.fraction,
+            turns_spent=state.ledger.turns_spent,
+        )
+        return result
+
     async def _finish_stopped(
         self, state: RunState, *, session_id: str | None, reason: str
     ) -> RunResult:
@@ -1282,6 +1393,8 @@ class AutonomousRunner:
         )
         if self._stop_summary_writer is not None:
             path = self._stop_summary_writer(markdown)
+            # Remembered so a wind-down marker can name the file it just wrote.
+            self._last_stop_summary_path = str(path)
             self._events.emit("stop.summary_written", {"path": str(path)})
             self._log.info("stop.summary_written", path=str(path))
         self._progress.finished(success=False, reason=reason)

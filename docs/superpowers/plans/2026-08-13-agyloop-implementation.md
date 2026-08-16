@@ -43,6 +43,7 @@ tests/...
 ```python
 import agyloop
 
+
 def test_version_is_string():
     assert isinstance(agyloop.__version__, str)
 ```
@@ -68,31 +69,40 @@ from agyloop.domain.classify import TurnSignals, classify
 from agyloop.domain.capacity import WindowExhausted, CreditsExhausted, AuthenticationFailed
 from agyloop.domain.waiting import next_pacific_midnight
 
+
 def test_rpm_resource_exhausted_is_window():
-    state = classify(TurnSignals(
-        http_status=429,
-        status="RESOURCE_EXHAUSTED",
-        message="Resource exhausted: RPM",
-        quota_metric="rpm",
-    ))
+    state = classify(
+        TurnSignals(
+            http_status=429,
+            status="RESOURCE_EXHAUSTED",
+            message="Resource exhausted: RPM",
+            quota_metric="rpm",
+        )
+    )
     assert isinstance(state, WindowExhausted)
     assert state.rate_limit_type == "rpm"
 
+
 def test_spend_limit_is_credits():
-    state = classify(TurnSignals(
-        http_status=429,
-        status="RESOURCE_EXHAUSTED",
-        message="spend-based rate limit",
-    ))
+    state = classify(
+        TurnSignals(
+            http_status=429,
+            status="RESOURCE_EXHAUSTED",
+            message="spend-based rate limit",
+        )
+    )
     assert isinstance(state, CreditsExhausted)
 
+
 def test_rpd_uses_pacific_midnight(fake_now):
-    state = classify(TurnSignals(
-        http_status=429,
-        status="RESOURCE_EXHAUSTED",
-        message="requests per day",
-        quota_metric="rpd",
-    ))
+    state = classify(
+        TurnSignals(
+            http_status=429,
+            status="RESOURCE_EXHAUSTED",
+            message="requests per day",
+            quota_metric="rpd",
+        )
+    )
     assert isinstance(state, WindowExhausted)
     assert state.rate_limit_type == "rpd"
 ```

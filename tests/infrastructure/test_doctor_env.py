@@ -143,3 +143,95 @@ def test_conflicting_api_key_and_vertex_does_not_guess_lane(
 def test_doctor_asserts_no_interactive_hooks() -> None:
     env = RealDoctorEnvironment()
     assert env.interactive_hooks_registered() is False
+
+
+def test_enterprise_flag_without_and_with_adc(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # 1. Enterprise without ADC
+    env = _env(monkeypatch, home=tmp_path, values={"GOOGLE_GENAI_USE_ENTERPRISE": "1"})
+    auth = env.resolve_auth()
+    assert auth.authenticated is False
+    assert auth.lane == "enterprise"
+    assert "ADC was not found" in auth.detail
+
+    # 2. Enterprise with ADC
+    adc = tmp_path / "adc.json"
+    adc.write_text("{}", encoding="utf-8")
+    env2 = _env(
+        monkeypatch,
+        home=tmp_path,
+        values={
+            "GOOGLE_GENAI_USE_ENTERPRISE": "1",
+            "GOOGLE_APPLICATION_CREDENTIALS": str(adc),
+        },
+    )
+    auth2 = env2.resolve_auth()
+    assert auth2.authenticated is True
+    assert auth2.lane == "enterprise"
+    assert "GOOGLE_GENAI_USE_ENTERPRISE" in auth2.source
+
+
+def test_cloudsdk_config_well_known_adc(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    sdk_dir = tmp_path / "custom_cloudsdk"
+    sdk_dir.mkdir(parents=True)
+    adc_file = sdk_dir / "application_default_credentials.json"
+    adc_file.write_text("{}", encoding="utf-8")
+
+    env = _env(monkeypatch, home=tmp_path, values={"CLOUDSDK_CONFIG": str(sdk_dir)})
+    auth = env.resolve_auth()
+    assert auth.authenticated is True
+    assert auth.source == "ADC_WELL_KNOWN"
+
+
+def test_find_and_version_agy_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    import subprocess
+    from unittest.mock import patch
+
+    env = RealDoctorEnvironment(home=tmp_path)
+    assert env.configured_mcp_servers() == []
+
+    # Successful version
+    with patch("shutil.which", return_value="/usr/local/bin/agy"):
+        assert env.find_agy_cli() == "/usr/local/bin/agy"
+
+    with patch("subprocess.run") as mock_run:
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["agy", "--version"],
+            returncode=0,
+            stdout="agy 0.2.0\n",
+        )
+        assert env.agy_cli_version("/usr/local/bin/agy") == "agy 0.2.0"
+
+        # Nonzero
+        mock_run.return_value = subprocess.CompletedProcess(
+            args=["agy", "--version"],
+            returncode=1,
+            stdout="",
+        )
+        assert env.agy_cli_version("/usr/local/bin/agy") is None
+
+        # Timeout
+        mock_run.side_effect = subprocess.TimeoutExpired(cmd=["agy"], timeout=10)
+        assert env.agy_cli_version("/usr/local/bin/agy") is None
+
+
+def test_doctor_interactive_hooks_registered_true() -> None:
+    from unittest.mock import patch
+
+    from google.antigravity.utils.interactive import ToolConfirmationHook
+
+    env = RealDoctorEnvironment()
+    with patch(
+        "agyloop.infrastructure.doctor_env.autonomy_hooks", return_value=[ToolConfirmationHook()]
+    ):
+        assert env.interactive_hooks_registered() is True
+
+    class CustomInteractiveHook:
+        pass
+
+    CustomInteractiveHook.__module__ = "google.antigravity.utils.interactive.sub"
+    with patch(
+        "agyloop.infrastructure.doctor_env.autonomy_hooks", return_value=[CustomInteractiveHook()]
+    ):
+        assert env.interactive_hooks_registered() is True

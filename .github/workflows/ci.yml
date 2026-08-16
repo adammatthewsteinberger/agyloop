@@ -80,8 +80,34 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
-      - run: pytest
-      - run: pytest -m system
+      - name: Domain coverage floor (100%)
+        run: >
+          pytest tests
+          --cov=agyloop.domain
+          --cov-report=term-missing
+          --cov-fail-under=100
+      - name: Application coverage floor (100%)
+        run: >
+          pytest tests
+          --cov=agyloop.application
+          --cov-report=term-missing
+          --cov-fail-under=100
+      - name: Infrastructure coverage floor (100%)
+        run: >
+          pytest tests
+          --cov=agyloop.infrastructure
+          --cov-report=term-missing
+          --cov-fail-under=100
+      - name: CLI coverage floor (100%)
+        run: >
+          pytest tests
+          --cov=agyloop.cli
+          --cov-report=term-missing
+          --cov-fail-under=100
+      - name: Full suite
+        run: pytest
+      - name: System harness
+        run: pytest -m system
 
   docs:
     name: mkdocs build --strict
