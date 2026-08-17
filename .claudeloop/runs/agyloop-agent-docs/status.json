@@ -1,9 +1,0 @@
-{
-  "ts": "2026-08-17T21:07:55.806525+00:00",
-  "run_id": "agyloop-agent-docs",
-  "event_type": "snapshot.latest",
-  "snapshot_path": "snapshots/latest.json",
-  "snapshot_digest": "3229c31cdcc68874a983d069a6010dbeeefd1efa208fde19fdf4be2961122936",
-  "snapshot_reason": "status",
-  "latest_path": "snapshots/latest.json"
-}

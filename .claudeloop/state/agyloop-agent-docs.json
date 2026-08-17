@@ -1,1 +1,0 @@
-{"phase": "RUNNING", "session_id": null, "attempt": 0, "turns_spent": 0, "dollars_spent": 0.0, "probe_count": 0, "started_waiting_at": null, "status": "active", "model": "claude-sonnet-4-5", "effort": "medium", "preset": "low", "capacity": "Available"}
