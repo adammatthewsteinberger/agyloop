@@ -1,0 +1,11 @@
+# claudeloop run resource manifest (auto-generated)
+permission_mode = "bypass"
+web_search = false
+deep_research = false
+cwd = "/Users/adam/.cache/fleet-worktrees/agyloop-agent-docs"
+attachments = []
+folders = ["/Users/adam/git/vibey/docs/plans"]
+skills = []
+plugins = []
+connectors = {}
+github = {}

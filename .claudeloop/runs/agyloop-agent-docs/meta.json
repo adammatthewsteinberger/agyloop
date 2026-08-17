@@ -1,0 +1,16 @@
+{
+  "run_id": "agyloop-agent-docs",
+  "pid": 42409,
+  "cwd": "/Users/adam/.cache/fleet-worktrees/agyloop-agent-docs",
+  "started_at": "2026-08-17T21:07:52.767379+00:00",
+  "session_id": null,
+  "plan_path": "/Users/adam/git/vibey/docs/plans/fleet/agent-docs-agyloop.md",
+  "status": "active",
+  "phase": "RUNNING",
+  "attempt": 1,
+  "waiting_until": null,
+  "model": "claude-sonnet-4-5",
+  "effort": "medium",
+  "preset": "low",
+  "capacity": "Available"
+}

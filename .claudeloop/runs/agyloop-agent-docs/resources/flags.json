@@ -1,0 +1,7 @@
+{
+  "permission_mode": "bypass",
+  "cwd": "/Users/adam/.cache/fleet-worktrees/agyloop-agent-docs",
+  "web_search": false,
+  "deep_research": false,
+  "cli_system_prompt_append": ""
+}
