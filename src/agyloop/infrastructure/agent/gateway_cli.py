@@ -20,6 +20,7 @@ from agyloop.domain.capacity import Available
 from agyloop.domain.classify import TurnSignals, classify
 from agyloop.domain.errors import AgentConfigError
 from agyloop.domain.model_profile import ModelEffortProfile
+from agyloop.domain.permission import DEFAULT_USER_PERMISSION_MODE, UserPermissionMode
 from agyloop.infrastructure.agent.cli_argv import AgyCliInvocation, build_agy_argv
 from agyloop.infrastructure.agent.translate import outcome_from_exception
 
@@ -61,6 +62,7 @@ class AgyCliAgentGateway:
         unsafe_skip_permissions: bool = False,
         print_timeout: str | None = None,
         runner: AgyProcessRunner | None = None,
+        permission_mode: UserPermissionMode = DEFAULT_USER_PERMISSION_MODE,
     ) -> None:
         self._cwd = Path(cwd)
         self._conversation_id = conversation_id
@@ -68,6 +70,7 @@ class AgyCliAgentGateway:
         self._unsafe_skip_permissions = unsafe_skip_permissions
         self._print_timeout = print_timeout
         self._runner = runner or execute_agy
+        self._permission_mode = permission_mode
 
     def resolve_tool_approval(self, request_id: str, *, allow: bool, reason: str = "") -> bool:
         del request_id, allow, reason
@@ -77,7 +80,8 @@ class AgyCliAgentGateway:
         self._model = profile.model
 
     async def set_permission_mode(self, mode: str) -> None:
-        del mode
+        if mode in ("autonomous", "scoped", "safe", "yolo"):
+            self._permission_mode = mode  # type: ignore[assignment]
 
     async def set_cwd(self, cwd: str) -> None:
         self._cwd = Path(cwd)
@@ -94,6 +98,7 @@ class AgyCliAgentGateway:
             "conversation_id": self._conversation_id,
             "model": self._model,
             "unsafe_skip_permissions": self._unsafe_skip_permissions,
+            "permission_mode": self._permission_mode,
         }
         if self._print_timeout is not None:
             kwargs["print_timeout"] = self._print_timeout

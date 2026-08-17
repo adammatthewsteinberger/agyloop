@@ -92,3 +92,40 @@ def test_empty_turn_soft_continue_then_blocked() -> None:
     assert isinstance(first, Continue)
     third = evaluate(structured=None, output_text="", cost_usd=0.0, empty_turn_streak=2)
     assert isinstance(third, Blocked)
+
+
+def test_permission_denial_only_turn_is_blocked() -> None:
+    """A turn that only contains permission-denial messages is not progress."""
+    denial_text = (
+        'jetski: no output produced — a tool required the "command" permission that '
+        "headless mode cannot prompt for, so it was auto-denied. Add an allow-rule "
+        "under permissions.allow in settings.json"
+    )
+    result = evaluate(structured=None, output_text=denial_text)
+    assert isinstance(result, Blocked)
+    assert "permission" in result.reason.lower() or "denied" in result.reason.lower()
+
+
+def test_permission_denial_with_marker_is_still_blocked() -> None:
+    """Permission denial outranks a completion marker — cannot be done if nothing ran."""
+    denial_text = (
+        "no output produced — a tool required permission that cannot be granted.\n"
+        f"{DEFAULT_DONE_MARKER}"
+    )
+    result = evaluate(structured=None, output_text=denial_text)
+    assert isinstance(result, Blocked)
+    assert not isinstance(result, Done)
+
+
+def test_permission_denial_pattern_variants() -> None:
+    """Detect multiple permission-denial phrasing variations."""
+    patterns = [
+        "tool required permission",
+        "auto-denied",
+        "permission that headless mode cannot",
+        "dangerously-skip-permissions",
+        "unsafe-skip-permissions to auto-approve",
+    ]
+    for pattern in patterns:
+        result = evaluate(structured=None, output_text=pattern)
+        assert isinstance(result, Blocked), f"Pattern '{pattern}' should block"

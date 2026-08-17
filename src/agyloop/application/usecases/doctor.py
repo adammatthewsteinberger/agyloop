@@ -13,6 +13,7 @@ from agyloop.application.interfaces.doctor import (
     AuthLane,
     AuthResolution,
     DoctorEnvironment,
+    HarnessStatus,
 )
 
 
@@ -91,6 +92,16 @@ def run_doctor(env: DoctorEnvironment, *, cwd: Path) -> list[DoctorCheck]:
                 if is_git_repo
                 else f"{cwd} is NOT a git repository — unattended writes here are riskier"
             ),
+        )
+    )
+
+    # Check SDK harness viability (for --gateway sdk) - advisory only
+    harness_status = env.check_sdk_harness()
+    checks.append(
+        DoctorCheck(
+            name="sdk-harness",
+            passed=True,  # Advisory only - CLI gateway is always available
+            detail=harness_status.detail,
         )
     )
     return checks

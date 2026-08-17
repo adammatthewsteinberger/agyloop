@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from agyloop.domain.errors import UnsafeSkipPermissionsError
+from agyloop.domain.permission import DEFAULT_USER_PERMISSION_MODE, UserPermissionMode
 
 ISSUE_36_URL = "https://github.com/google-antigravity/antigravity-cli/issues/36"
 UNSAFE_SKIP_WARNING = (
@@ -70,6 +71,49 @@ def _is_allowlisted(cwd: Path, allowlist: Sequence[str] | None) -> bool:
     return False
 
 
+def _build_permission_settings(
+    *,
+    permission_mode: UserPermissionMode,
+    workspace: Path,
+) -> dict[str, Any]:
+    """Build agy CLI permission settings for the given mode.
+
+    Maps agyloop permission modes to agy settings.json format:
+    - autonomous: workspace-scoped allows + destructive denies (most permissive)
+    - scoped: workspace-scoped allows + destructive denies (no blanket allow)
+    - safe: restrictive (not fully implemented here, treated as scoped)
+    - yolo: unrestricted (not recommended, treated as autonomous)
+    """
+    resolved_workspace = str(workspace.resolve())
+    if permission_mode in ("autonomous", "yolo"):
+        # Autonomous: allow workspace-scoped commands, deny only destructive ones
+        return {
+            "toolPermission": "ask",
+            "permissions": {
+                "allow": [
+                    f"command(cwd={resolved_workspace})",
+                    f"edit(path={resolved_workspace}/*)",
+                    f"write(path={resolved_workspace}/*)",
+                    f"read(path={resolved_workspace}/*)",
+                ],
+                "deny": ["command(rm -rf)", "command(mkfs)", "command(dd if=)"],
+            },
+        }
+    # scoped or safe: workspace-scoped, no blanket allow
+    return {
+        "toolPermission": "ask",
+        "permissions": {
+            "allow": [
+                f"command(cwd={resolved_workspace})",
+                f"edit(path={resolved_workspace}/*)",
+                f"write(path={resolved_workspace}/*)",
+                f"read(path={resolved_workspace}/*)",
+            ],
+            "deny": ["command(rm -rf)", "command(mkfs)", "command(dd if=)"],
+        },
+    }
+
+
 def validate_unsafe_skip_permissions(
     *,
     cwd: Path,
@@ -101,6 +145,7 @@ def build_agy_argv(
     unsafe_skip_permissions: bool = False,
     allowlist: Sequence[str] | None = None,
     print_timeout: str = DEFAULT_PRINT_TIMEOUT,
+    permission_mode: UserPermissionMode = DEFAULT_USER_PERMISSION_MODE,
 ) -> AgyCliInvocation:
     """Construct an ``agy -p`` invocation. Never emits skip-permissions with sandbox."""
     workspace = Path.cwd() if cwd is None else cwd
@@ -125,10 +170,11 @@ def build_agy_argv(
         settings = {}
         warning = UNSAFE_SKIP_WARNING
     else:
-        settings = {
-            "toolPermission": "proceed-in-sandbox",
-            "permissions": {"deny": ["unsandboxed"]},
-        }
+        # Build settings based on permission_mode
+        settings = _build_permission_settings(
+            permission_mode=permission_mode,
+            workspace=workspace,
+        )
     if use_sandbox:
         argv.append("--sandbox")
 

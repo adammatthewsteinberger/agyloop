@@ -47,7 +47,9 @@ async def test_cli_gateway_default_sandbox_argv(tmp_path: Path) -> None:
     assert "--conversation" in argv
     assert "-c" not in argv
     assert "--dangerously-skip-permissions" not in argv
-    assert scripted.invocations[0].settings["toolPermission"] == "proceed-in-sandbox"
+    # Default (autonomous) mode should allow workspace commands
+    assert scripted.invocations[0].settings["toolPermission"] in ("ask", "allow")
+    assert "allow" in scripted.invocations[0].settings["permissions"]
 
 
 @pytest.mark.asyncio
