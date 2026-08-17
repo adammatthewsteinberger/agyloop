@@ -25,6 +25,7 @@ from agyloop.application.interfaces.doctor import (
     AuthLane,
     AuthResolution,
     DoctorEnvironment,
+    HarnessStatus,
 )
 from agyloop.application.interfaces.observability import (
     AuditLog,
@@ -58,6 +59,7 @@ __all__ = [
     "Clock",
     "ControlInbox",
     "DoctorEnvironment",
+    "HarnessStatus",
     "Logger",
     "Notifier",
     "ProgressReporter",

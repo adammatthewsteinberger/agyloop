@@ -9,6 +9,7 @@ from agyloop.application.dto import RunResult
 from agyloop.application.usecases.doctor import (
     AuthResolution,
     DoctorCheck,
+    HarnessStatus,
     all_passed,
     run_doctor,
 )
@@ -107,12 +108,16 @@ class _FakeDoctorEnv:
         agy_path: str | None = None,
         agy_version: str | None = None,
         mcp_servers: list[str] | None = None,
+        harness_status: HarnessStatus | None = None,
     ) -> None:
         self._auth = auth
         self._interactive_hooks = interactive_hooks
         self._agy_path = agy_path
         self._agy_version = agy_version
         self._mcp_servers = mcp_servers or []
+        self._harness_status = harness_status or HarnessStatus(
+            available=False, detail="test harness (not available)"
+        )
 
     def resolve_auth(self) -> AuthResolution:
         return self._auth
@@ -129,6 +134,9 @@ class _FakeDoctorEnv:
 
     def configured_mcp_servers(self) -> list[str]:
         return self._mcp_servers
+
+    def check_sdk_harness(self) -> HarnessStatus:
+        return self._harness_status
 
 
 def _authed_developer() -> AuthResolution:

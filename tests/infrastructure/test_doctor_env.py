@@ -235,3 +235,69 @@ def test_doctor_interactive_hooks_registered_true() -> None:
         "agyloop.infrastructure.doctor_env.autonomy_hooks", return_value=[CustomInteractiveHook()]
     ):
         assert env.interactive_hooks_registered() is True
+
+
+def test_check_sdk_harness_when_sdk_not_installed(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    env = RealDoctorEnvironment(home=tmp_path)
+    with patch("agyloop.infrastructure.doctor_env.stock_harness_path", return_value=None):
+        status = env.check_sdk_harness()
+        assert status.available is False
+        assert "not installed" in status.detail.lower()
+
+
+def test_check_sdk_harness_with_patched_harness_pass(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    env = RealDoctorEnvironment(home=tmp_path)
+    cache_path = tmp_path / ".cache" / "agyloop"
+    patched_harness = cache_path / "localharness"
+    patched_harness.parent.mkdir(parents=True, exist_ok=True)
+    patched_harness.write_text("#!/bin/sh\necho test")
+
+    with (
+        patch("agyloop.infrastructure.doctor_env.stock_harness_path", return_value="/some/path"),
+        patch("agyloop.infrastructure.doctor_env.cache_dir", return_value=cache_path),
+        patch("agyloop.infrastructure.doctor_env.smoke_check_harness", return_value=None),
+    ):
+        status = env.check_sdk_harness()
+        assert status.available is True
+        assert "verified" in status.detail
+
+
+def test_check_sdk_harness_with_patched_harness_fail(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    env = RealDoctorEnvironment(home=tmp_path)
+    cache_path = tmp_path / ".cache" / "agyloop"
+    patched_harness = cache_path / "localharness"
+    patched_harness.parent.mkdir(parents=True, exist_ok=True)
+    patched_harness.write_text("#!/bin/sh\necho test")
+
+    with (
+        patch("agyloop.infrastructure.doctor_env.stock_harness_path", return_value="/some/path"),
+        patch("agyloop.infrastructure.doctor_env.cache_dir", return_value=cache_path),
+        patch("agyloop.infrastructure.doctor_env.smoke_check_harness", return_value="timeout"),
+    ):
+        status = env.check_sdk_harness()
+        assert status.available is False
+        assert "SDK harness issue" in status.detail
+        assert "timeout" in status.detail
+
+
+def test_check_sdk_harness_stock_no_patch(tmp_path: Path) -> None:
+    from unittest.mock import patch
+
+    env = RealDoctorEnvironment(home=tmp_path)
+    cache_path = tmp_path / ".cache" / "agyloop"
+    stock_path = Path("/usr/local/bin/localharness")
+
+    with (
+        patch("agyloop.infrastructure.doctor_env.stock_harness_path", return_value=stock_path),
+        patch("agyloop.infrastructure.doctor_env.cache_dir", return_value=cache_path),
+    ):
+        status = env.check_sdk_harness()
+        assert status.available is True
+        assert "stock harness" in status.detail
+        assert "no patch needed" in status.detail

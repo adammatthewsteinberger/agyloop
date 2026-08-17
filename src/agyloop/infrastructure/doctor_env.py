@@ -8,8 +8,13 @@ import subprocess  # nosec B404 - fixed-argument `agy --version` only
 from collections.abc import Mapping
 from pathlib import Path
 
-from agyloop.application.interfaces import AuthResolution
+from agyloop.application.interfaces import AuthResolution, HarnessStatus
 from agyloop.infrastructure.agent.autonomy import autonomy_hooks
+from agyloop.infrastructure.agent.harness_retarget import (
+    cache_dir,
+    smoke_check_harness,
+    stock_harness_path,
+)
 from agyloop.infrastructure.agent.options import build_local_config
 from agyloop.infrastructure.agent.policies import config_has_nonblocking_policies
 
@@ -149,3 +154,32 @@ class RealDoctorEnvironment:
 
     def configured_mcp_servers(self) -> list[str]:
         return []
+
+    def check_sdk_harness(self) -> HarnessStatus:
+        """Check SDK harness viability for --gateway sdk."""
+        stock_path = stock_harness_path()
+        if stock_path is None:
+            return HarnessStatus(
+                available=False,
+                detail="google-antigravity not installed (SDK gateway not available)",
+            )
+        patched_path = cache_dir() / "localharness"
+        if patched_path.exists():
+            smoke_result = smoke_check_harness(patched_path, timeout=2.0)
+            if smoke_result is None:
+                return HarnessStatus(
+                    available=True,
+                    detail=f"patched harness at {patched_path} verified",
+                )
+            return HarnessStatus(
+                available=False,
+                detail=(
+                    f"SDK harness issue: {smoke_result}. "
+                    f"Use --gateway cli, or run `agyloop doctor repair-harness`. "
+                    f"Patched binary at {patched_path}"
+                ),
+            )
+        return HarnessStatus(
+            available=True,
+            detail=f"stock harness at {stock_path} (no patch needed yet)",
+        )
