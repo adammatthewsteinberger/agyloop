@@ -118,5 +118,6 @@ __all__ = [
     "AuthResolution",
     "DoctorCheck",
     "DoctorEnvironment",
+    "HarnessStatus",
     "run_doctor",
 ]
