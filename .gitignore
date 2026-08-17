@@ -43,4 +43,5 @@ site/
 
 # --- agyloop runtime directories ---
 .agyloop/
+.claudeloop/
 
