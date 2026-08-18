@@ -28,6 +28,7 @@ import shutil
 import signal
 import subprocess  # nosec B404 - fixed argv smoke check, never shell=True
 import sys
+import time
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -167,6 +168,18 @@ def write_patched_copy(stock: Path, dest: Path) -> Path:
     if not dest.is_file() or dest.read_bytes() != patched:
         dest.write_bytes(patched)
     dest.chmod(stock.stat().st_mode)
+    # Re-sign the binary after patching to fix the invalidated code signature.
+    # macOS kills processes with modified signatures (SIGKILL), which surfaces as
+    # "Failed to read length from stdout" when the harness dies before writing
+    # its 4-byte header. Ad-hoc signing is sufficient for local execution.
+    # codesign may not be available on non-macOS, or may fail for other reasons.
+    # The patched binary may still work on platforms without code signature enforcement.
+    with suppress(OSError, subprocess.CalledProcessError):
+        subprocess.run(  # nosec B603 B607 - fixed argv, codesign is a system binary
+            ["codesign", "-s", "-", "--force", "--preserve-metadata=entitlements", str(dest)],
+            check=True,
+            capture_output=True,
+        )
     copy_harness_siblings(stock, dest.parent)
     return dest
 
@@ -215,7 +228,7 @@ def smoke_check_harness(dest: Path, *, timeout: float = SMOKE_TIMEOUT_SECONDS) -
     try:
         proc = subprocess.Popen(  # nosec B603 - fixed argv, never shell=True
             [str(dest)],
-            stdin=subprocess.DEVNULL,
+            stdin=subprocess.PIPE,  # PIPE, not DEVNULL: harness waits for input
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             # Own process group: the harness spawns a language-server child, and
@@ -225,14 +238,30 @@ def smoke_check_harness(dest: Path, *, timeout: float = SMOKE_TIMEOUT_SECONDS) -
         )
     except OSError as exc:
         return f"spawn_failed:{type(exc).__name__}:{exc}"
-    try:
-        _, stderr = proc.communicate(timeout=timeout)
-    except subprocess.TimeoutExpired:
+    # Poll for the timeout duration without closing stdin. communicate() would close
+    # stdin immediately, causing the harness to hit EOF and exit before the window ends.
+    end_time = time.monotonic() + timeout
+    while time.monotonic() < end_time:
+        if proc.poll() is not None:
+            # Process exited before the timeout
+            break
+        time.sleep(0.1)
+
+    if proc.poll() is None:
         # Still running after the window: it started. That is the pass case.
         _kill_process_tree(proc)
         with suppress(OSError):
             marker.write_text(stamp + "\n", encoding="utf-8")
         return None
+
+    # Process exited during the window. Collect stderr for diagnostics.
+    try:
+        _, stderr = proc.communicate(timeout=1.0)
+    except subprocess.TimeoutExpired:
+        # Zombie or hung; treat as unrunnable
+        _kill_process_tree(proc)
+        return "exit_hung:process_exited_but_communicate_timed_out"
+
     if proc.returncode == 0:
         with suppress(OSError):
             marker.write_text(stamp + "\n", encoding="utf-8")
@@ -433,6 +462,13 @@ def overwrite_site_packages_harness(stock: Path) -> Path | None:
         return None
     stock.write_bytes(patched)
     stock.chmod(stock_mode)
+    # Re-sign after patching to fix the invalidated code signature.
+    with suppress(OSError, subprocess.CalledProcessError):
+        subprocess.run(  # nosec B603 B607 - fixed argv, codesign is a system binary
+            ["codesign", "-s", "-", "--force", "--preserve-metadata=entitlements", str(stock)],
+            check=True,
+            capture_output=True,
+        )
     return backup
 
 
