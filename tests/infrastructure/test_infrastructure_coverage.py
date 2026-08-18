@@ -325,6 +325,7 @@ def test_harness_retarget_coverage_branches(tmp_path: Path) -> None:
         patch.dict("os.environ", {"AGYLOOP_NO_SITE_PACKAGES_PATCH": "0"}),
         patch.object(Path, "is_file", return_value=False),
         patch.object(Path, "write_bytes"),
+        patch.object(Path, "chmod"),
         patch.object(Path, "read_bytes", side_effect=[b"data", b"corrupted"]),
         pytest.raises(OSError, match="backup failed verification"),
     ):

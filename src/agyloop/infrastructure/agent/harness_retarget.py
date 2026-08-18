@@ -419,10 +419,12 @@ def overwrite_site_packages_harness(stock: Path) -> Path | None:
     """Last filesystem resort. Backup next to the original before overwrite."""
     if os.environ.get(NO_SITE_PACKAGES_ENV) == "1":
         return None
+    stock_mode = stock.stat().st_mode
     backup = stock.with_name(stock.name + BACKUP_SUFFIX)
     original = stock.read_bytes()
     if not backup.is_file():
         backup.write_bytes(original)
+        backup.chmod(stock_mode)
         if backup.read_bytes() != original:
             backup.unlink(missing_ok=True)
             raise OSError("site-packages harness backup failed verification")
@@ -430,6 +432,7 @@ def overwrite_site_packages_harness(stock: Path) -> Path | None:
     if patched == original:
         return None
     stock.write_bytes(patched)
+    stock.chmod(stock_mode)
     return backup
 
 
