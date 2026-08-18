@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from pathlib import Path
 from types import ModuleType
 from unittest.mock import MagicMock, patch
@@ -162,6 +163,21 @@ def test_harness_retarget_coverage_branches(tmp_path: Path) -> None:
         proc.returncode = 0
         mock_popen.return_value = proc
         assert smoke_check_harness(dest_file) is None
+
+    # smoke_check_harness when the process exits during the poll window but
+    # the follow-up communicate() to collect stderr itself times out (a
+    # grandchild still holding the pipe open) -- treated as unrunnable
+    # rather than raising.
+    dest_file2 = tmp_path / "dummy_exe2"
+    dest_file2.write_bytes(b"dummy2")
+    with patch("subprocess.Popen") as mock_popen:
+        proc = MagicMock()
+        proc.poll.return_value = 0
+        proc.pid = 999999999
+        proc.communicate.side_effect = subprocess.TimeoutExpired(cmd="x", timeout=1.0)
+        mock_popen.return_value = proc
+        reason = smoke_check_harness(dest_file2)
+        assert reason == "exit_hung:process_exited_but_communicate_timed_out"
 
     # HarnessSession.close with proxy and previous_harness_path
     session = HarnessSession(
