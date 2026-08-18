@@ -15,6 +15,9 @@ issue or a PR fixing it.
 6. [Testing philosophy](#testing-philosophy)
 7. [The onion architecture import rule](#the-onion-architecture-import-rule)
 8. [PR checklist](#pr-checklist)
+9. [Getting help](#getting-help)
+10. [Code of Conduct](#code-of-conduct)
+11. [License of contributions](#license-of-contributions)
 
 ## Environment setup
 
@@ -27,7 +30,9 @@ pip install -e ".[dev,docs]"
 pre-commit install
 ```
 
-Requires Python 3.12+. See
+Requires **Python 3.12+** on **macOS or Linux**. Windows is not a supported
+target. Live runs need `GOOGLE_API_KEY` or Application Default Credentials;
+the default test suite and `pytest -m system` need no Google account. See
 [`docs/contributing/development.md`](docs/contributing/development.md).
 
 ## The branch model (gitflow)
@@ -148,3 +153,31 @@ Enforced by `import-linter`. See
 - [ ] Docs updated if behavior changed
 - [ ] Agent surfaces kept in sync (Claude / Cursor / Codex / Antigravity)
 - [ ] A new ADR if this PR makes a hard, non-obvious design call
+- [ ] You agree to the [Code of Conduct](CODE_OF_CONDUCT.md) and to license
+      this contribution under the MIT License
+
+## Getting help
+
+| I want to... | Go here |
+|---|---|
+| User/operator docs | [https://adammatthewsteinberger.github.io/agyloop/](https://adammatthewsteinberger.github.io/agyloop/) |
+| Ask a question or discuss design | [GitHub Discussions](https://github.com/adammatthewsteinberger/agyloop/discussions) |
+| Report a bug | [Bug report form](https://github.com/adammatthewsteinberger/agyloop/issues/new?template=bug_report.yml) |
+| Propose a feature | [Feature request form](https://github.com/adammatthewsteinberger/agyloop/issues/new?template=feature_request.yml) |
+| Report a vulnerability | [SECURITY.md](SECURITY.md) — privately |
+| Same map, shorter | [SUPPORT.md](SUPPORT.md) |
+
+Blank issues are disabled on purpose. If none of the forms fit, open a
+Discussion instead of a free-form issue.
+
+## Code of Conduct
+
+Participation in this project is governed by the
+[Contributor Covenant Code of Conduct](CODE_OF_CONDUCT.md). Report
+unacceptable behavior to adam@matthewsteinberger.com.
+
+## License of contributions
+
+This repository is MIT-licensed ([LICENSE](LICENSE)). By opening a pull
+request you agree that your contribution is provided under the same MIT
+License (inbound = outbound). There is no CLA.
