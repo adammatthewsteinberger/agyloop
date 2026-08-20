@@ -9,12 +9,17 @@ body:
         required because a CLI bug report without them is usually
         unreproducible.
 
+        This project supports **macOS and Linux only**. Please run
+        `agyloop doctor` before filing, and search existing issues first.
+        Usage questions belong in [Discussions](https://github.com/adammatthewsteinberger/agyloop/discussions),
+        not here.
+
   - type: input
     id: version
     attributes:
       label: agyloop version
       description: Output of `agyloop --version`
-      placeholder: "0.1.0"
+      placeholder: "0.4.0"
     validations:
       required: true
 
@@ -22,6 +27,7 @@ body:
     id: os
     attributes:
       label: Operating system
+      description: Windows is not a supported target (see the installation guide).
       options:
         - macOS
         - Linux
@@ -66,7 +72,7 @@ body:
     attributes:
       label: Relevant log output
       description: >-
-        Paste relevant lines from the run's events.jsonl or --log-file.
+        Paste relevant lines from the run's audit log (see --log-file).
         Redact any API keys, tokens, or sensitive file contents first.
       render: shell
 

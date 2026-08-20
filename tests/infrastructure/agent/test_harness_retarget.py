@@ -128,6 +128,26 @@ def test_site_packages_backup_and_restore(tmp_path: Path, monkeypatch: pytest.Mo
     assert not backup.is_file()
 
 
+def test_site_packages_overwrite_preserves_executable_bit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The stock binary ships executable; overwriting it in place must not
+    silently strip that bit. A stock file created only via write_bytes (as
+    in test_site_packages_backup_and_restore above) is never executable in
+    the first place, so that test can't catch a regression here -- this one
+    starts from an explicitly-chmod'd stock file, matching the real wheel."""
+    monkeypatch.delenv("AGYLOOP_NO_SITE_PACKAGES_PATCH", raising=False)
+    stock = tmp_path / "localharness"
+    stock.write_bytes(_STOCK)
+    stock.chmod(0o755)
+
+    backup = overwrite_site_packages_harness(stock)
+
+    assert backup is not None
+    assert stock.stat().st_mode & 0o777 == 0o755
+    assert backup.stat().st_mode & 0o777 == 0o755
+
+
 def test_repair_harness_restores_backup(tmp_path: Path) -> None:
     stock = tmp_path / "localharness"
     stock.write_bytes(INPUT_DETECTION_BINARY_ID.encode("ascii"))

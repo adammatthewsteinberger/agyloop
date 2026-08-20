@@ -27,6 +27,14 @@ class AuthResolution:
     detail: str
 
 
+@dataclass(frozen=True, slots=True)
+class HarnessStatus:
+    """SDK harness availability and smoke-check result."""
+
+    available: bool
+    detail: str
+
+
 @runtime_checkable
 class DoctorEnvironment(Protocol):
     """What doctor needs from the outside world -- no live SDK session."""
@@ -36,3 +44,4 @@ class DoctorEnvironment(Protocol):
     def find_agy_cli(self) -> str | None: ...
     def agy_cli_version(self, path: str) -> str | None: ...
     def configured_mcp_servers(self) -> list[str]: ...
+    def check_sdk_harness(self) -> HarnessStatus: ...

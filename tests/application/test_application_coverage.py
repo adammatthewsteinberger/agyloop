@@ -10,6 +10,7 @@ from agyloop.application.dto import TurnOutcome
 from agyloop.application.runner import AutonomousRunner
 from agyloop.application.usecases.doctor import (
     AuthResolution,
+    HarnessStatus,
     run_doctor,
 )
 from agyloop.application.usecases.run_control import (
@@ -144,6 +145,9 @@ class _DoctorEnvWithCli:
 
     def configured_mcp_servers(self) -> list[str]:
         return []
+
+    def check_sdk_harness(self) -> HarnessStatus:
+        return HarnessStatus(available=True, detail="stock harness available")
 
 
 def test_doctor_with_cli_found(tmp_path: Path) -> None:

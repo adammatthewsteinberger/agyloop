@@ -9,7 +9,7 @@ from typer.testing import CliRunner, Result
 
 from agyloop import __version__
 from agyloop.application.dto import RunResult
-from agyloop.application.usecases.doctor import AuthResolution
+from agyloop.application.usecases.doctor import AuthResolution, HarnessStatus
 from agyloop.bootstrap import RunnerContext, build_runner
 from agyloop.cli import asyncio as cli_asyncio
 from agyloop.cli.app import app
@@ -205,6 +205,9 @@ def test_doctor_cli_reports_resolved_lane(monkeypatch: pytest.MonkeyPatch, tmp_p
 
         def configured_mcp_servers(self) -> list[str]:
             return []
+
+        def check_sdk_harness(self) -> HarnessStatus:
+            return HarnessStatus(available=True, detail="stock harness available")
 
     monkeypatch.setattr("agyloop.bootstrap.build_doctor_environment", lambda: _FakeEnv())
     monkeypatch.chdir(tmp_path)

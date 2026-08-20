@@ -6,6 +6,7 @@ A substring marker is retained as a fallback when structured output is absent.
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 DEFAULT_DONE_MARKER = "AGYLOOP_TASK_FULLY_COMPLETE"
@@ -16,6 +17,16 @@ DONE_MARKER_INSTRUCTION = (
     f"even when you also emit structured output; if structured output is "
     f"unavailable it is the completion signal. Never treat a missing verdict "
     f"as completion."
+)
+
+# Permission-denial patterns that indicate a turn produced no real work.
+# A turn consisting only of these messages is not progress and must block.
+_PERMISSION_DENIAL_PATTERNS = (
+    re.compile(r"tool required.{0,20}permission", re.IGNORECASE),
+    re.compile(r"auto-denied", re.IGNORECASE),
+    re.compile(r"permission that.{0,30}cannot", re.IGNORECASE),
+    re.compile(r"dangerously-skip-permissions", re.IGNORECASE),
+    re.compile(r"unsafe-skip-permissions", re.IGNORECASE),
 )
 
 COMPLETION_RESPONSE_SCHEMA: dict[str, object] = {
@@ -85,6 +96,18 @@ class StructuredVerdict:
     summary: str = ""
 
 
+def _is_permission_denial_only(output_text: str) -> bool:
+    """True when the output consists only of permission-denial messages.
+
+    A turn that only reports tool calls were auto-denied due to missing permissions
+    is not progress — it's evidence the run never got to do anything. This distinguishes
+    that failure mode from a legitimately trivial task (rare in practice).
+    """
+    if not output_text.strip():
+        return False
+    return any(pattern.search(output_text) for pattern in _PERMISSION_DENIAL_PATTERNS)
+
+
 def evaluate(
     *,
     structured: StructuredVerdict | None,
@@ -108,6 +131,11 @@ def evaluate(
         if structured.complete:
             return Done(summary=structured.summary)
         return Continue(remaining_work=structured.remaining_work)
+
+    # Permission-denial-only turns are not progress, even when followed by a marker.
+    # This prevents silent no-op runs where every tool call is auto-denied.
+    if _is_permission_denial_only(output_text):
+        return Blocked(reason="turn produced only permission-denial messages; no tools executed")
 
     if done_marker in output_text:
         return Done(summary="")

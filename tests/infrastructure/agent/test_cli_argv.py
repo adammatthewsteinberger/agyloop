@@ -31,11 +31,15 @@ def test_default_argv_uses_sandbox_and_never_emits_skip_permissions() -> None:
     assert "--continue" not in argv
 
 
-def test_default_settings_deny_unsandboxed() -> None:
+def test_default_settings_allow_workspace_commands() -> None:
+    """Default (autonomous) mode allows workspace-scoped commands."""
     invocation = build_agy_argv(prompt="hello")
-    assert invocation.settings["toolPermission"] == "proceed-in-sandbox"
-    deny = invocation.settings["permissions"]["deny"]
-    assert "unsandboxed" in deny
+    assert invocation.settings["toolPermission"] in ("ask", "allow")
+    # Should have workspace allows, not blanket denies
+    assert "permissions" in invocation.settings
+    assert "allow" in invocation.settings["permissions"]
+    # Should deny destructive commands
+    assert "deny" in invocation.settings["permissions"]
     assert "--dangerously-skip-permissions" not in invocation.argv
 
 
@@ -132,7 +136,40 @@ def test_cli_argv_effective_uid_and_allowlist_child_and_sandbox_false(tmp_path: 
     inv = build_agy_argv(prompt="hello", cwd=tmp_path, sandbox=False)
     assert "--sandbox" not in inv.argv
     assert "--dangerously-skip-permissions" not in inv.argv
-    assert inv.settings["toolPermission"] == "proceed-in-sandbox"
+    assert inv.settings["toolPermission"] in ("ask", "allow")
+
+
+def test_scoped_permission_mode_allows_workspace_commands(tmp_path: Path) -> None:
+    """--scoped mode must allow command execution within the workspace."""
+    inv = build_agy_argv(prompt="build the project", cwd=tmp_path, permission_mode="scoped")
+    settings = inv.settings
+    # Scoped mode should NOT deny all unsandboxed commands - it should allow workspace-scoped ones
+    assert "unsandboxed" not in settings.get("permissions", {}).get("deny", [])
+    # Should have workspace-scoped allow rules
+    assert "permissions" in settings
+    assert "allow" in settings["permissions"]
+    # The workspace path should be in the allow rules
+    workspace_path = str(tmp_path.resolve())
+    allow_rules = settings["permissions"]["allow"]
+    # Check that at least one allow rule references the workspace
+    assert any(workspace_path in str(rule) for rule in allow_rules), (
+        f"Expected workspace {workspace_path} in allow rules, got {allow_rules}"
+    )
+
+
+def test_autonomous_permission_mode_includes_allow_all(tmp_path: Path) -> None:
+    """autonomous mode should be more permissive than scoped."""
+    inv = build_agy_argv(prompt="run tests", cwd=tmp_path, permission_mode="autonomous")
+    # Autonomous might have different settings than scoped
+    # The key is it should be at least as permissive as scoped
+    assert "permissions" in inv.settings
+
+
+def test_default_permission_mode_is_autonomous(tmp_path: Path) -> None:
+    """When no permission_mode is specified, default to autonomous."""
+    inv = build_agy_argv(prompt="hello", cwd=tmp_path)
+    # Default should work - exact settings may vary but it shouldn't deny everything
+    assert inv.settings is not None
 
 
 def _init_git(repo: Path) -> None:

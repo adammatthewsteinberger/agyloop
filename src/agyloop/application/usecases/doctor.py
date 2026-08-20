@@ -13,6 +13,7 @@ from agyloop.application.interfaces.doctor import (
     AuthLane,
     AuthResolution,
     DoctorEnvironment,
+    HarnessStatus,
 )
 
 
@@ -93,6 +94,16 @@ def run_doctor(env: DoctorEnvironment, *, cwd: Path) -> list[DoctorCheck]:
             ),
         )
     )
+
+    # Check SDK harness viability (for --gateway sdk) - advisory only
+    harness_status = env.check_sdk_harness()
+    checks.append(
+        DoctorCheck(
+            name="sdk-harness",
+            passed=True,  # Advisory only - CLI gateway is always available
+            detail=harness_status.detail,
+        )
+    )
     return checks
 
 
@@ -107,5 +118,6 @@ __all__ = [
     "AuthResolution",
     "DoctorCheck",
     "DoctorEnvironment",
+    "HarnessStatus",
     "run_doctor",
 ]

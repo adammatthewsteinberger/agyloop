@@ -47,7 +47,9 @@ async def test_cli_gateway_default_sandbox_argv(tmp_path: Path) -> None:
     assert "--conversation" in argv
     assert "-c" not in argv
     assert "--dangerously-skip-permissions" not in argv
-    assert scripted.invocations[0].settings["toolPermission"] == "proceed-in-sandbox"
+    # Default (autonomous) mode should allow workspace commands
+    assert scripted.invocations[0].settings["toolPermission"] in ("ask", "allow")
+    assert "allow" in scripted.invocations[0].settings["permissions"]
 
 
 @pytest.mark.asyncio
@@ -186,6 +188,8 @@ async def test_cli_gateway_helpers_and_execute_agy(tmp_path: Path) -> None:
     await gateway.set_profile(ModelEffortProfile(model="gemini-2.5-flash", effort="low"))
     assert gateway._model == "gemini-2.5-flash"
     await gateway.set_permission_mode("scoped")
+    await gateway.set_permission_mode("not-a-real-mode")  # unrecognized: no-op
+    assert gateway._permission_mode == "scoped"
     await gateway.set_cwd(str(tmp_path / "new_cwd"))
     assert gateway._cwd == tmp_path / "new_cwd"
     await gateway.set_session_resources(foo="bar")
