@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.4.1](https://github.com/adammatthewsteinberger/agyloop/compare/agyloop-v0.4.0...agyloop-v0.4.1) (2026-08-20)
+
+
+### Bug Fixes
+
+* preserve executable bit when overwrite_site_packages_harness patches the stock binary ([#27](https://github.com/adammatthewsteinberger/agyloop/issues/27)) ([cf9936e](https://github.com/adammatthewsteinberger/agyloop/commit/cf9936e3d9ca39374ee15061e50f66c00c4724a4))
+* prevent silent failures in CLI gateway and improve harness diagnostics ([#25](https://github.com/adammatthewsteinberger/agyloop/issues/25)) ([c3699b9](https://github.com/adammatthewsteinberger/agyloop/commit/c3699b902263534db40c5751c0cac1aab61bf1a1))
+
+
+### Documentation
+
+* engagement refresh — README, community files, metadata ([#28](https://github.com/adammatthewsteinberger/agyloop/issues/28)) ([3d19968](https://github.com/adammatthewsteinberger/agyloop/commit/3d1996839bddab3c9440bad57256c50de4d4e824))
+* update links for renamed repos (vibey-bootstrap, vibey-skills, engineering-influence-skills) ([#30](https://github.com/adammatthewsteinberger/agyloop/issues/30)) ([ca4d42e](https://github.com/adammatthewsteinberger/agyloop/commit/ca4d42e6960c940ff56bba7613a3d3ddb8022c93))
+
 ## [0.4.0](https://github.com/adammatthewsteinberger/agyloop/compare/agyloop-v0.3.0...agyloop-v0.4.0) (2026-08-16)
 
 
