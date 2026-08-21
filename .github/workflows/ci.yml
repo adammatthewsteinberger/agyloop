@@ -80,32 +80,22 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - run: python -m pip install --upgrade pip
       - run: pip install -e ".[dev]"
-      - name: Domain coverage floor (100%)
-        run: >
-          pytest tests
-          --cov=agyloop.domain
-          --cov-report=term-missing
-          --cov-fail-under=100
-      - name: Application coverage floor (100%)
-        run: >
-          pytest tests
-          --cov=agyloop.application
-          --cov-report=term-missing
-          --cov-fail-under=100
-      - name: Infrastructure coverage floor (100%)
-        run: >
-          pytest tests
-          --cov=agyloop.infrastructure
-          --cov-report=term-missing
-          --cov-fail-under=100
-      - name: CLI coverage floor (100%)
-        run: >
-          pytest tests
-          --cov=agyloop.cli
-          --cov-report=term-missing
-          --cov-fail-under=100
+      # One instrumented run feeds all four floors. `coverage report
+      # --include=` filters the written data file per layer, so each floor
+      # keeps an independent verdict (an uncovered line fails only its own
+      # layer) without re-running the suite four more times. The full suite
+      # IS this run, so it is no longer executed separately: 5 runs -> 1,
+      # ~49s -> ~9s.
       - name: Full suite
-        run: pytest
+        run: pytest tests --cov=agyloop --cov-branch --cov-report=
+      - name: Domain coverage floor (100%)
+        run: coverage report --include='src/agyloop/domain/*' --fail-under=100
+      - name: Application coverage floor (100%)
+        run: coverage report --include='src/agyloop/application/*' --fail-under=100
+      - name: Infrastructure coverage floor (100%)
+        run: coverage report --include='src/agyloop/infrastructure/*' --fail-under=100
+      - name: CLI coverage floor (100%)
+        run: coverage report --include='src/agyloop/cli/*' --fail-under=100
       - name: System harness
         run: pytest -m system
 
