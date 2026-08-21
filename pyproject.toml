@@ -56,6 +56,7 @@ dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
+    "pytest-xdist>=3.5",
     "ruff>=0.6",
     "twine>=5.0",
 ]
@@ -101,7 +102,7 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
-addopts = "-m \"not live and not system\""
+addopts = "-m \"not live and not system\" -n auto --maxprocesses=8"
 markers = [
     "live: exercises a real Google/Gemini account. Opt in with -m live.",
     "system: deterministic system harness (real FS/git/CLI adapters + scripted agent). Opt in with -m system.",
