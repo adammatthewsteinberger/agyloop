@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """CLI capacity probe: one throwaway ``agy -p``, classified by the same ladder.
 
 The point of this adapter is that ``--gateway cli`` keeps real capacity

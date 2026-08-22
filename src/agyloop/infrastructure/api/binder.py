@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Bind discovered Gemini REST methods to a nested Typer command tree."""
 
 from __future__ import annotations

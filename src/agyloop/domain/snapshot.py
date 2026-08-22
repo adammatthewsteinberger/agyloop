@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Run handoff snapshot ADTs — pure, no I/O."""
 
 from __future__ import annotations

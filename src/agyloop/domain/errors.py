@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Domain-level error hierarchy. Pure — carries no I/O state."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Operator control commands delivered mid-run via the control-plane inbox.
 
 These are pure ADTs — the runner applies them; infrastructure only serializes

@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Pure assembly of the mid-run stop summary markdown document."""
 
 from __future__ import annotations

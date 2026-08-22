@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Wipe the local `.agyloop/` control plane for a project."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Real fakes (not unittest.mock.Mock) implementing application/ports.py's
 Protocols, so mypy --strict checks them against the port shape and no test
 ever calls time.sleep() for real."""

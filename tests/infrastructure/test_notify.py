@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Stderr notifier must be loud: credits exhaustion is not a quiet log line."""
 
 import pytest

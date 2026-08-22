@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """File-backed state bus — status.json snapshot plus bus.jsonl publications."""
 
 from __future__ import annotations

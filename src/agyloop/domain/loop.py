@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """The autonomous run loop's pure state machine.
 
 Nothing in this module performs I/O; every transition is a function of

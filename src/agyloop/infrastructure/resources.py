@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Run-scoped resource store under `.agyloop/runs/<id>/resources/`."""
 
 from __future__ import annotations

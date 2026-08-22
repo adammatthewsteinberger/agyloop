@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Completion verdicts — was the whole task finished, or just this turn?
 
 Primary source is the structured-output verdict the model returns per turn.

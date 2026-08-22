@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Gemini REST gateway: path interpolation, fake transport, lane split."""
 
 from __future__ import annotations

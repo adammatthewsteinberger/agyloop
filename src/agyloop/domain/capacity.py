@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Capacity state — whether a real turn can be spent, and why not if it cannot.
 
 Five members because Gemini's quota dimensions do not collapse: per-minute
