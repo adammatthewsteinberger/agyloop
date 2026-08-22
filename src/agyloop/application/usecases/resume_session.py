@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Use cases: resume a conversation from the local .agyloop/ run registry."""
 
 from __future__ import annotations

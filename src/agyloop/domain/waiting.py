@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Adaptive wait policy — next probe instant, never a blind sleep.
 
 Quota-aware: RPM/TPM (and TransientThrottle) use a short bounded backoff;

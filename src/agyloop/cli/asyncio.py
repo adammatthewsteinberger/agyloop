@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """The single asyncio bridge between Typer's sync commands and async I/O.
 
 One ``asyncio.run`` call site for the whole CLI — not one per command.

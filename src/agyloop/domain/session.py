@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Session reference and selection value objects.
 
 SessionCatalog enumerates agyloop's run registry, not vendor conversations.

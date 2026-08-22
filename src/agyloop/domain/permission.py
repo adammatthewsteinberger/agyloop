@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """User-facing permission modes — compiled to Antigravity policies by the adapter.
 
 The port speaks this enum only. Infrastructure must not leak

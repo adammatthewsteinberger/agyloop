@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Build ``agy`` CLI argv without the sandbox + skip-permissions footgun.
 
 Default: ``--sandbox`` plus ``proceed-in-sandbox`` / ``deny: unsandboxed``.

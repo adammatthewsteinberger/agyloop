@@ -42,6 +42,7 @@ dev = [
     { name = "pytest-xdist" },
     { name = "ruff" },
     { name = "twine" },
+    { name = "vibey-gh" },
 ]
 docs = [
     { name = "mkdocs" },
@@ -71,6 +72,7 @@ requires-dist = [
     { name = "textual", specifier = ">=1.0" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=5.0" },
     { name = "typer", specifier = ">=0.12" },
+    { name = "vibey-gh", marker = "extra == 'dev'", specifier = ">=1.2" },
 ]
 provides-extras = ["dev", "docs"]
 
@@ -2629,6 +2631,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/03/18/ccce41535dee1be77735592bd19965f3972c82e07ee703d324709496b716/uvicorn-0.52.1.tar.gz", hash = "sha256:112ec661814189acbccd3f7b86460147cc065fc92c0821afa78918780e4354dd", size = 100571, upload-time = "2026-08-01T18:19:30.732Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/d5/68e6e9bca63c0badf67002890a46d3784c958de45b65e1275ec583ca1f06/uvicorn-0.52.1-py3-none-any.whl", hash = "sha256:e4403f9d93188cf9d1088e9f40e3acd12630e2df8675316704379a7fc20fff6a", size = 79859, upload-time = "2026-08-01T18:19:29.294Z" },
+]
+
+[[package]]
+name = "vibey-gh"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d6/ec/9ac6e223bbe80fc4b5cadc89dc4adaf05524ff66115f3b476e63f183c4d8/vibey_gh-1.2.0.tar.gz", hash = "sha256:d999284af096f36a804d3b4e49373b9833d53f95687e2f8a6314439036da0d97", size = 35739, upload-time = "2026-08-22T00:40:00.452Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/6b/6a7c778e6fa4a7ce320afff4b7e59ad9e6dcd6f698fa990f3ac6b2e6b664/vibey_gh-1.2.0-py3-none-any.whl", hash = "sha256:e765aa89e0f9486385422db7690918695482a0c9656d56e88f587cd9ca983f31", size = 33389, upload-time = "2026-08-22T00:39:59.353Z" },
 ]
 
 [[package]]

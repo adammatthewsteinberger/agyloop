@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Auth-lane resolution for ``agyloop doctor``. Never guesses Developer vs Enterprise."""
 
 from __future__ import annotations

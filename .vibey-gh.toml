@@ -1,0 +1,23 @@
+# vibey-gh owns provenance and release automation for this repository.
+# release-please has been retired: two systems deriving versions and opening
+# release pull requests against one branch is a race, not redundancy.
+
+[fingerprint]
+sources = [
+  "src/**/*.py",
+  "tests/**/*.py",
+  ".github/workflows/*.yml",
+]
+
+[version]
+files         = ["pyproject.toml", "src/agyloop/__init__.py"]
+content_paths = ["src/agyloop/"]
+code_paths    = ["src/agyloop/"]
+
+[branches]
+integration = "develop"
+release     = "main"
+
+[merge_train]
+owner           = "adammatthewsteinberger"
+trusted_authors = ["adammatthewsteinberger", "claude[bot]", "github-actions[bot]", "vibey[bot]"]

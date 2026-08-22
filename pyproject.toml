@@ -47,6 +47,10 @@ Changelog = "https://github.com/adammatthewsteinberger/agyloop/blob/main/CHANGEL
 
 [project.optional-dependencies]
 dev = [
+    # Release automation and provenance guardrails, shared by every repo in
+    # the family. Stdlib-only, so adopting it in five places multiplies
+    # nobody's dependency tree.
+    "vibey-gh>=1.2",
     "bandit>=1.7",
     "build>=1.2",
     "hypothesis>=6.100",

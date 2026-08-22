@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Capacity probe backed by the ``agy`` CLI, for ``--gateway cli``.
 
 The SDK probe in ``probe.py`` boots the local Antigravity harness. Selecting

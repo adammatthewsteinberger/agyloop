@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Capture harness logging around a turn and fail closed on empty+404."""
 
 from __future__ import annotations

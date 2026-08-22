@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Pure helpers for chatter field truncation and event payloads."""
 
 from __future__ import annotations

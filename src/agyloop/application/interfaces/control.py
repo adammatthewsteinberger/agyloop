@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """The out-of-band control plane: commands an operator drops for a live run."""
 
 from __future__ import annotations

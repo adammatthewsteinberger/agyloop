@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 import pytest
 
 from agyloop.domain.pricing import ESTIMATE_LABEL, estimate_dollars, price_for_model

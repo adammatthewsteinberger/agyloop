@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """AutonomousRunner — executes domain.loop's pure Decisions against real ports.
 
 Contains NO capacity or completion logic of its own. Every "is this waitable",

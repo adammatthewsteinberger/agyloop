@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Composition root — the only module that wires infrastructure into ports.
 
 CLI and application never import infrastructure; they ask this module.

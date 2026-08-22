@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Coverage-oriented tests for new mid-run control / savepoint / null ports."""
 
 from __future__ import annotations
