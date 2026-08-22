@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """``AgentGateway`` backed by a live ``agy`` CLI subprocess.
 
 Uses ``build_agy_argv`` so the default is ``--sandbox`` plus

@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Localhost Gemini rewrite proxy — withdrawn model id only, no live Google."""
 
 from __future__ import annotations

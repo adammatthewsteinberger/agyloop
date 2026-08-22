@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Realtime per-run event sink — append-only JSONL with recursive redaction."""
 
 from __future__ import annotations

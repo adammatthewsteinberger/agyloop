@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Retarget Antigravity input-detection off withdrawn ``gemini-2.5-flash-lite``.
 
 SDK facts (installed ``google-antigravity`` localharness):

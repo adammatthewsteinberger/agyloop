@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """The wind-down marker a supervisor reads: ``runs/<id>/handoff.json``.
 
 Why a separate file rather than reusing ``snapshots/latest.json``: latest.json

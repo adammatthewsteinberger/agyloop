@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """DoctorEnvironment resolves GOOGLE_API_KEY vs ADC without guessing the lane."""
 
 from __future__ import annotations

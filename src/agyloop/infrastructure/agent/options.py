@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Build ``LocalAgentConfig`` for unattended Antigravity SDK sessions.
 
 Additive ``system_instructions`` only — never ``CustomSystemInstructions``

@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """In-process system harness: real rundir/control/git + scripted agent."""
 
 from __future__ import annotations

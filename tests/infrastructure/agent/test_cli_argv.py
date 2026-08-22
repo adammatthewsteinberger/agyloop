@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """CLI argv builder: never combine skip-permissions with sandbox; refuse root."""
 
 from __future__ import annotations

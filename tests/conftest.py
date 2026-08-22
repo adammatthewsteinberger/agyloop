@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 import os
 from collections.abc import Iterator
 from datetime import UTC, datetime

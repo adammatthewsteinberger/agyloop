@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """File-based RunControl — operator commands land in inbox/*.cmd.json."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Data transfer objects passed between application/ and infrastructure/ adapters.
 Not domain value objects — these carry the raw shape of one SDK interaction
 before domain.classify.classify() and domain.completion.evaluate() reduce them

@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Configuration precedence: CLI flags > AGYLOOP_* env > agyloop.toml > defaults."""
 
 from __future__ import annotations

@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Drift gate: every discovery method has a generated ``agyloop api`` command."""
 
 from __future__ import annotations

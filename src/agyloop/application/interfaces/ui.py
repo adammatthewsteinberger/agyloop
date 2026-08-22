@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """The live view seam. Textual itself stays in infrastructure."""
 
 from __future__ import annotations

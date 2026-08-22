@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """SDK gateway wraps Agent(config) as an async CM and maps drain errors."""
 
 from __future__ import annotations

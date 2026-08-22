@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 from agyloop.domain.completion import (
     COMPLETION_RESPONSE_SCHEMA,
     DEFAULT_DONE_MARKER,

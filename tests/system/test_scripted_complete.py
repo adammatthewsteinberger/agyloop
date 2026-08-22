@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Deterministic system harness: real FS/git/control + scripted agent, no Gemini."""
 
 from __future__ import annotations

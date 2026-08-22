@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Redact credential-shaped keys from snapshot / log payloads."""
 
 from __future__ import annotations
