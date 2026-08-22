@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Budget guardrails for an unattended, potentially multi-hour/multi-day run.
 
 Turns and tokens are first-class caps. Dollars are an optional estimate only

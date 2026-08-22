@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Textual stream UI — live, follow, and historical replay of events.jsonl."""
 
 from __future__ import annotations

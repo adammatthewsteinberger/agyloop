@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """structlog configuration with optional file transport."""
 
 from __future__ import annotations

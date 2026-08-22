@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Typer application and console-script entry point."""
 
 from pathlib import Path

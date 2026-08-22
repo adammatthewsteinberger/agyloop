@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """CLI gateway: argv from build_agy_argv, subprocess mocked, 429s classified."""
 
 from __future__ import annotations

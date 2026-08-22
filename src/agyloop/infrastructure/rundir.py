@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Per-run control directory layout under `.agyloop/runs/<run_id>/`."""
 
 from __future__ import annotations

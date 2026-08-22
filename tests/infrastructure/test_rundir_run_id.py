@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Caller-supplied run ids: validation and collision behaviour."""
 
 from __future__ import annotations

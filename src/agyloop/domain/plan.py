@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Work plan value objects — parsing a handoff markdown file into discrete items."""
 
 from __future__ import annotations

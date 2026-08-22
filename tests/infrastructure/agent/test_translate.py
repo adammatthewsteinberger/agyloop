@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Exception and chunk translation into TurnSignals / TurnOutcome."""
 
 from __future__ import annotations

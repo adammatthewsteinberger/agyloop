@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """What `doctor` needs from the outside world, and the vocabulary it answers in.
 
 Kept separate from the AgentGateway seam so `doctor` stays cheap to run and

@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Git save-point value objects — migration-like snapshots of the worktree."""
 
 from __future__ import annotations

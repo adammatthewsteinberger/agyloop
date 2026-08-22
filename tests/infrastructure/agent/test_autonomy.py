@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """HITL / ask_question is denied with guidance, never auto-answered."""
 
 from __future__ import annotations

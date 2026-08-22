@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Pacific-time quota boundary arithmetic and quota-id vocabulary."""
 
 from __future__ import annotations

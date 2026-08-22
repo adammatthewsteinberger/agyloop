@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Use case: seed a fresh session from a plan file and run it to completion."""
 
 from __future__ import annotations

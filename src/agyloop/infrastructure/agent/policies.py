@@ -1,3 +1,4 @@
+# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Inspect LocalAgentConfig policies without leaking blocking HITL handlers."""
 
 from __future__ import annotations
