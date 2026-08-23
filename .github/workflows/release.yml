@@ -1,10 +1,10 @@
 # Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 name: Release
 
-# develop publishes a dev build to TestPyPI; main publishes the real thing to PyPI.
-# TestPyPI comes first on the main path because a PyPI version is immutable — it can
-# never be reused, even after a yank — so the only chance to catch a bad artifact is
-# before it is uploaded.
+# develop publishes a uniquely versioned dev build to TestPyPI; main publishes the
+# release artifact directly to PyPI. The two branch paths are deliberately disjoint:
+# publishing a final release version to TestPyPI first makes the main release depend
+# on a second registry and can collide with an immutable version uploaded there.
 on:
   push:
     branches: [main, develop]
@@ -54,6 +54,7 @@ jobs:
   testpypi:
     name: Publish to TestPyPI
     needs: build
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     environment: testpypi
     permissions:
@@ -66,10 +67,10 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
           skip-existing: true
 
-  verify:
+  verify-testpypi:
     name: Verify the TestPyPI artifact
     needs: [build, testpypi]
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/setup-python@v5
@@ -96,7 +97,7 @@ jobs:
 
   pypi:
     name: Publish to PyPI
-    needs: [build, verify]
+    needs: build
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: pypi
