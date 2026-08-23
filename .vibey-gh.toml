@@ -18,6 +18,11 @@ code_paths    = ["src/agyloop/"]
 integration = "develop"
 release     = "main"
 
+[install]
+# Provenance is repository-owned because agyloop adopted vibey-gh after
+# several commits already entered the develop-to-main promotion history.
+workflows = ["merge-train.yml", "promote-to-main.yml"]
+
 [merge_train]
 owner           = "adammatthewsteinberger"
 trusted_authors = ["adammatthewsteinberger", "claude[bot]", "github-actions[bot]", "vibey[bot]"]
