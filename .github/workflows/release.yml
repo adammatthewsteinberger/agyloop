@@ -1,3 +1,4 @@
+# Made with ❤️ by [Vibey](https://adammatthewsteinberger.github.io/vibey/), Developed by [Adam Matthew Steinberger](https://hire.adam.matthewsteinberger.com/) ([@adammatthewsteinberger](https://github.com/adammatthewsteinberger/)).
 # Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 name: Release
 
@@ -27,7 +28,7 @@ jobs:
       - name: Stamp a dev version on develop
         if: github.ref == 'refs/heads/develop'
         run: |
-          python -m pip install --quiet vibey-gh
+          python -m pip install --quiet "vibey-gh==1.38.0"
           # An index version is immutable, so a develop build cannot reuse the release
           # version; the dev suffix makes each push distinct and sorts it BEFORE the
           # release it anticipates, which is the correct relationship.
@@ -131,7 +132,7 @@ jobs:
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
 
-      - run: python -m pip install --quiet vibey-gh
+      - run: python -m pip install --quiet "vibey-gh==1.38.0"
 
       # main is rebase-merged, so its commits are rewritten copies with new SHAs and
       # develop can never be fast-forwarded onto it. `realign` converges them only when

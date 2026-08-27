@@ -6,47 +6,23 @@ repo_url: https://github.com/adammatthewsteinberger/agyloop
 repo_name: adammatthewsteinberger/agyloop
 edit_uri: edit/main/docs/
 
-theme:
-  name: material
-  palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: teal
-      toggle:
-        icon: material/brightness-7
-        name: Switch to dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: teal
-      toggle:
-        icon: material/brightness-4
-        name: Switch to light mode
-  features:
-    - navigation.instant
-    - navigation.tracking
-    - navigation.sections
-    - navigation.top
-    - content.code.copy
-    - content.action.edit
-    - search.suggest
-    - search.highlight
+# ProperDocs, matching vibey-gh and vibey-skills. `theme: mkdocs` rather than Material:
+# ProperDocs ships its own theme package and the Material palette/features block has no
+# equivalent here, so the styling lives in stylesheets/vibey.css instead.
+theme: mkdocs
+
+extra_css:
+  - stylesheets/vibey.css
+extra_javascript:
+  - javascripts/channel.js
 
 plugins:
   - search
-  - mkdocstrings:
-      handlers:
-        python:
-          options:
-            show_source: true
-            show_root_heading: true
-            docstring_style: google
 
 markdown_extensions:
   - admonition
-  - pymdownx.details
-  - pymdownx.superfences
-  - pymdownx.highlight
-  - pymdownx.inlinehilite
+  - attr_list
+  - md_in_html
   - tables
   - toc:
       permalink: true
