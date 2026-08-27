@@ -107,7 +107,7 @@ jobs:
             exit 1
           fi
       - name: Check out trusted automation
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 1
@@ -211,12 +211,12 @@ jobs:
       structured: ${{ steps.claude.outputs.structured_output }}
     steps:
       - name: Check out trusted automation
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: automation
       - name: Check out exact untrusted head for reading only
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: ${{ needs.evaluate.outputs.head_repo }}
           ref: ${{ needs.evaluate.outputs.head_sha }}
@@ -407,7 +407,7 @@ jobs:
       issues: write
       pull-requests: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           fetch-depth: 0
@@ -440,12 +440,12 @@ jobs:
       fixable: ${{ steps.result.outputs.fixable }}
     steps:
       - name: Check out trusted automation
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: automation
       - name: Check out repair branch
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.evaluate.outputs.head_ref }}
           path: target
@@ -732,12 +732,12 @@ jobs:
       pull-requests: write
     steps:
       - name: Check out trusted automation
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: automation
       - name: Check out exact conflicting head
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.evaluate.outputs.head_sha }}
           path: target
@@ -987,7 +987,7 @@ jobs:
       passed: ${{ steps.result.outputs.passed }}
     steps:
       - name: Check out trusted automation
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.repository.default_branch }}
           path: automation
