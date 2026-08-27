@@ -1,4 +1,4 @@
-# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
+# Made with ❤️ by [Vibey](https://adammatthewsteinberger.github.io/vibey/), Developed by [Adam Matthew Steinberger](https://hire.adam.matthewsteinberger.com/) ([@adammatthewsteinberger](https://github.com/adammatthewsteinberger/)).
 """``AgentGateway`` backed by ``google.antigravity.Agent`` + ``LocalAgentConfig``.
 
 Wraps ``Agent(config)`` as an async context manager, drains ``chat()`` inside

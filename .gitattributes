@@ -6,3 +6,6 @@
 *.toml text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
+
+# vibey-gh: append-only files merge instead of conflicting
+CHANGELOG.md merge=union
