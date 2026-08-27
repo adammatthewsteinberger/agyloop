@@ -1,5 +1,4 @@
 # Made with ❤️ by [Vibey](https://adammatthewsteinberger.github.io/vibey/), Developed by [Adam Matthew Steinberger](https://hire.adam.matthewsteinberger.com/) ([@adammatthewsteinberger](https://github.com/adammatthewsteinberger/)).
-# Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 """Use case: pre-flight checks before a long unattended run.
 
 Resolves the Gemini auth lane and its source without guessing. Interactive
