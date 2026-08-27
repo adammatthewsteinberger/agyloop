@@ -19,10 +19,29 @@ integration = "develop"
 release     = "main"
 
 [install]
+# Pin every rendered template to the version that rendered it. Unpinned, a runner adopts
+# whatever is newest -- which is how vibey-skills' CI jumped 1.2.0 -> 1.16.0 mid-week and
+# went red on a `check` that had grown teeth. `vibey-gh install` advances the pin now.
+pin_version = true
 # Provenance is repository-owned because agyloop adopted vibey-gh after
 # several commits already entered the develop-to-main promotion history.
-workflows = ["merge-train.yml", "promote-to-main.yml"]
+workflows = ["merge-train.yml", "promote-to-main.yml", "release-surfaces.yml", "pr-automation.yml", "automation-bootstrap.yml"]
 
 [merge_train]
 owner           = "adammatthewsteinberger"
 trusted_authors = ["adammatthewsteinberger", "claude[bot]", "github-actions[bot]", "vibey[bot]"]
+
+[documentation]
+# Off deliberately. The contract is default-on and expects a marketplace manifest, a
+# per-agent rules tree, a mermaid architecture diagram and a dozen other files. Adopting it
+# is a real project, and doing so as a side effect of a version bump would fail `check` on
+# every push.
+enabled = false
+
+[pr_automation]
+# The default set names "Docs", and the hand-authored docs.yml that used to answer to it
+# only ever triggered on push to main -- so the gate waited for a scan that could never
+# complete for a pull request and never posted at all. Made a required check, that silently
+# blocks every PR; it is what forced an admin merge of vibey-skills' own promotion. That
+# workflow is gone now, replaced by release-surfaces.yml, so the name goes with it.
+scan_workflows = ["CI", "Provenance"]

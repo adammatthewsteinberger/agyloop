@@ -1,3 +1,4 @@
+# Made with ❤️ by [Vibey](https://adammatthewsteinberger.github.io/vibey/), Developed by [Adam Matthew Steinberger](https://hire.adam.matthewsteinberger.com/) ([@adammatthewsteinberger](https://github.com/adammatthewsteinberger/)).
 # Made with love by Vibey, the auto-vibecoding machine by Adam Matthew Steinberger.
 name: CI
 
@@ -101,7 +102,7 @@ jobs:
         run: pytest -m system
 
   docs:
-    name: mkdocs build --strict
+    name: properdocs build --strict
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7.0.1
@@ -109,8 +110,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m pip install --upgrade pip
-      - run: pip install -e ".[docs]"
-      - run: mkdocs build --strict
+      - run: pip install 'properdocs==1.6.7' 'properdocs-theme-mkdocs==1.6.7'
+      - run: properdocs build --strict
 
   uv-lock:
     name: uv.lock is in sync with pyproject.toml
