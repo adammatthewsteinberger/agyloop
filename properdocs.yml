@@ -69,3 +69,4 @@ nav:
       - Harness patch: contributing/harness-patch.md
   - Changelog: https://github.com/adammatthewsteinberger/agyloop/blob/main/CHANGELOG.md
   - Security: security.md
+  - Research paper: paper.md
