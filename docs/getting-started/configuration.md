@@ -63,6 +63,7 @@ USD estimate reaches the cap.
 | `AGYLOOP_GEMINI_REWRITE_PROXY=0` | Disable the localhost Gemini model-id rewrite proxy |
 | `AGYLOOP_INSTALL_REWRITE_CA=1` | Explicit opt-in to install the rewrite-proxy CA (never silent) |
 | `AGYLOOP_SKIP_HARNESS_RETARGET=1` | Skip binary patch / monkeypatch / proxy (tests) |
+| `AGYLOOP_SKIP_HARNESS_SMOKE=1` | Skip the patched-binary smoke check (tests) |
 
 State lives under `.agyloop/` in the working directory. `agyloop reset --yes`
 deletes that tree only (refuses while a run PID is live).

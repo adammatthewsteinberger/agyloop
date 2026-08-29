@@ -25,10 +25,13 @@ flowchart TD
     subgraph Domain[Domain core - pure, no I/O]
         Loop[loop - the autonomous run loop]
         Capacity[capacity + quota + forecast + pricing]
+        Classify[classify - turn-signal to CapacityState ladder]
+        Waiting[waiting - adaptive quota-aware wait policy]
         Budget[budget - max-dollars enforcement]
         Session[session + plan + completion]
         Savepoint[savepoint + snapshot + handoff_marker]
         ModelPolicy[model_policy + model_profile + permission]
+        Control[control - mid-run ControlCommand ADT]
     end
 
     subgraph Infrastructure[Infrastructure adapters]
@@ -84,10 +87,15 @@ flowchart TD
     DoctorUC --> Ports
     Ports --> Loop
     Loop --> Capacity
+    Loop --> Classify
+    Loop --> Waiting
     Loop --> Budget
     Loop --> Session
     Loop --> Savepoint
     Loop --> ModelPolicy
+    Classify --> Waiting
+    Waiting --> Capacity
+    RunControl --> Control
     Ports --> AgentAdapter
     Ports --> ApiAdapter
     Ports --> Config
