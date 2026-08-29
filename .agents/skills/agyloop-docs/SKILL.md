@@ -1,7 +1,7 @@
 ---
 name: agyloop-docs
-description: Where content belongs (routers vs skills vs docs), MkDocs strict build, PyPI-safe absolute README links.
-allowed-tools: Read Grep Glob Bash(mkdocs *)
+description: Where content belongs (routers vs skills vs docs), ProperDocs strict build, PyPI-safe absolute README links.
+allowed-tools: Read Grep Glob Bash(properdocs *)
 ---
 
 # agyloop documentation
@@ -19,8 +19,8 @@ security, contributing, changelog. Relative `docs/*.md` links break on PyPI.
 
 ```bash
 pip install -e ".[docs]"
-mkdocs serve
-mkdocs build --strict
+properdocs serve --config-file properdocs.yml
+properdocs build --strict --config-file properdocs.yml
 ```
 
 `edit_uri` stays `edit/main/docs/` — the published site tracks `main`.

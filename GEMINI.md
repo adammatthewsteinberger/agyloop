@@ -33,7 +33,7 @@ pytest
 pytest -m system
 mypy --strict src/agyloop
 lint-imports
-mkdocs build --strict
+properdocs build --strict --config-file properdocs.yml
 ```
 
 ## Surfaces

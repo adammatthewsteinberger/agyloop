@@ -37,8 +37,8 @@ pytest -m system
 ruff check --fix src tests && ruff format src tests
 mypy --strict src/agyloop
 lint-imports
-mkdocs serve
-mkdocs build --strict
+properdocs serve --config-file properdocs.yml
+properdocs build --strict --config-file properdocs.yml
 ```
 
 ## Where to go

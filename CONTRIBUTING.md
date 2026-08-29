@@ -116,7 +116,7 @@ pytest -m system
 lint-imports
 bandit -q -r src/agyloop
 pip-audit
-mkdocs build --strict
+properdocs build --strict --config-file properdocs.yml
 ```
 
 Or:

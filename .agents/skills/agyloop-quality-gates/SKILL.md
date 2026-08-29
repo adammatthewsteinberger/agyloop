@@ -1,7 +1,7 @@
 ---
 name: agyloop-quality-gates
-description: How to run and fix ruff, mypy --strict, pytest, lint-imports, bandit, pip-audit, mkdocs. Consult when a gate fails.
-allowed-tools: Bash(ruff *) Bash(mypy *) Bash(pytest *) Bash(lint-imports) Bash(bandit *) Bash(pip-audit *) Bash(pre-commit *) Bash(mkdocs *) Read
+description: How to run and fix ruff, mypy --strict, pytest, lint-imports, bandit, pip-audit, properdocs. Consult when a gate fails.
+allowed-tools: Bash(ruff *) Bash(mypy *) Bash(pytest *) Bash(lint-imports) Bash(bandit *) Bash(pip-audit *) Bash(pre-commit *) Bash(properdocs *) Read
 ---
 
 # agyloop quality gates
@@ -15,7 +15,7 @@ pytest -m system
 lint-imports
 bandit -q -r src/agyloop
 pip-audit
-mkdocs build --strict
+properdocs build --strict --config-file properdocs.yml
 ```
 
 | Gate | Fix |
@@ -26,6 +26,6 @@ mkdocs build --strict
 | `lint-imports` | Move code to the correct layer (architecture skill). |
 | `bandit` | Fix, or `# nosec Bxxx` with *why*. |
 | `pip-audit` | Bump the dependency. |
-| `mkdocs` | Broken link or missing nav entry. |
+| `properdocs` | Broken link or missing nav entry. |
 
 `pre-commit run --all-files` runs the hook subset. Python 3.12–3.13 in CI.

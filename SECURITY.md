@@ -110,6 +110,14 @@ Report privately via one of:
   Design goal: no `shell=True` anywhere.
 - Emitting `--dangerously-skip-permissions` together with `--sandbox`, or
   honoring `--unsafe-skip-permissions` as root / outside git.
+- Agent-instruction injection via this repository's own guidance files.
+  `.claude/skills/`, `.agents/skills/`, `.agent/rules/`, and `.cursor/rules/`
+  are auto-discovered and loaded as invokable skills/rules by AI coding
+  agents (including review and repair automation) that open this
+  repository. A PR that edits these paths can alter instructions a future
+  agent session treats as legitimate guidance from the project rather than
+  from untrusted PR content. Report ways this could be abused to smuggle
+  unreviewed behavior into an agent's tool use.
 
 **Out of scope:**
 

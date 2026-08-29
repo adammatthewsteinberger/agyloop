@@ -12,7 +12,7 @@ pytest -m system
 lint-imports
 bandit -q -r src/agyloop
 pip-audit
-mkdocs build --strict
+properdocs build --strict --config-file properdocs.yml
 ```
 
 | Gate | Fix |
@@ -23,6 +23,6 @@ mkdocs build --strict
 | `lint-imports` | Move code to the correct layer (architecture skill). |
 | `bandit` | Fix, or `# nosec Bxxx` with *why*. |
 | `pip-audit` | Bump the dependency. |
-| `mkdocs` | Broken link or missing nav entry. |
+| `properdocs` | Broken link or missing nav entry. |
 
 `pre-commit run --all-files` runs the hook subset. Python 3.12–3.13 in CI.

@@ -29,9 +29,11 @@ flowchart TD
         Waiting[waiting - adaptive quota-aware wait policy]
         Budget[budget - max-dollars enforcement]
         Session[session + plan + completion]
-        Savepoint[savepoint + snapshot + handoff_marker]
+        Savepoint[savepoint + snapshot + handoff_marker + savepoint_message + stop_summary]
         ModelPolicy[model_policy + model_profile + permission]
         Control[control - mid-run ControlCommand ADT]
+        Chatter[chatter + verbosity + slash]
+        Errors[errors - domain exception hierarchy]
     end
 
     subgraph Infrastructure[Infrastructure adapters]
@@ -42,6 +44,8 @@ flowchart TD
         Observability[events + state_bus + stream_ui + logging + redact]
         RunDir[rundir - .agyloop/ control plane]
         Notify[notify]
+        RunControlAdapter[control - file-based RunControl, inbox *.cmd.json]
+        Resources[resources - attach/unattach resource store]
     end
 
     subgraph External[External systems]
@@ -93,6 +97,8 @@ flowchart TD
     Loop --> Session
     Loop --> Savepoint
     Loop --> ModelPolicy
+    Loop --> Chatter
+    Loop --> Errors
     Classify --> Waiting
     Waiting --> Capacity
     RunControl --> Control
@@ -100,6 +106,8 @@ flowchart TD
     Ports --> ApiAdapter
     Ports --> Config
     Ports --> Observability
+    RunControl --> RunControlAdapter
+    Ops --> Resources
     Savepoint --> GitSavepoints
     AgentAdapter --> Antigravity
     ApiAdapter --> GeminiAPI

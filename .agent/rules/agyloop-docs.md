@@ -16,8 +16,8 @@ security, contributing, changelog. Relative `docs/*.md` links break on PyPI.
 
 ```bash
 pip install -e ".[docs]"
-mkdocs serve
-mkdocs build --strict
+properdocs serve --config-file properdocs.yml
+properdocs build --strict --config-file properdocs.yml
 ```
 
 `edit_uri` stays `edit/main/docs/` — the published site tracks `main`.

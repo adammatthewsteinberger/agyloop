@@ -93,7 +93,7 @@ for the full reasoning.
 
 ## Documentation
 
-Full docs (built with MkDocs Material) live at
+Full docs (built with ProperDocs) live at
 **https://adammatthewsteinberger.github.io/agyloop/**. The same content
 is in the [`docs/`](https://github.com/adammatthewsteinberger/agyloop/tree/develop/docs) directory on GitHub.
 
@@ -105,7 +105,7 @@ is in the [`docs/`](https://github.com/adammatthewsteinberger/agyloop/tree/devel
 | [Decision records](https://adammatthewsteinberger.github.io/agyloop/architecture/decisions/0001-onion-architecture/) | Why each hard call was made — onion, five-member `CapacityState`, quota-aware probes, generated REST with a drift gate |
 | [Contributing](https://adammatthewsteinberger.github.io/agyloop/contributing/development/) | Development setup, [release process](https://adammatthewsteinberger.github.io/agyloop/contributing/release-process/) |
 | [Plans](https://github.com/adammatthewsteinberger/agyloop/tree/develop/docs/plans) | Design record, vendor research notes, and the shared transplant outline (GitHub tree; not in the site nav) |
-| [Changelog](https://github.com/adammatthewsteinberger/agyloop/blob/develop/CHANGELOG.md) | Release notes; versions are derived and published by [vibey-gh](https://pypi.org/project/vibey-gh/) at promotion |
+| [Changelog](https://github.com/adammatthewsteinberger/agyloop/blob/main/CHANGELOG.md) | Release notes; versions are derived and published by [vibey-gh](https://pypi.org/project/vibey-gh/) at promotion |
 
 ## Project status
 
