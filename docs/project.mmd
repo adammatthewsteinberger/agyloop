@@ -1,0 +1,100 @@
+%% Comprehensive architecture map of agyloop: every layer of the onion, its
+%% capability surfaces, the release automation that ships it, and the security
+%% boundaries that keep untrusted input away from credentials. Kept current by
+%% the exact-head documentation review, which treats a stale relationship here
+%% as blocking.
+flowchart TD
+    subgraph CLI[CLI surface - agyloop / agy]
+        Run[run / resume / stop / prompt]
+        Ops[status / logs / watch / attach / unattach]
+        State[config / reset / snapshot / unwind]
+        Tuning[model / preset]
+        Groups[sessions / runs / doctor / savepoints]
+        ApiCli[api - generated Gemini REST CLI]
+    end
+
+    subgraph Application[Application layer - use cases and ports]
+        RunPlan[run_plan]
+        ResumeSession[resume_session]
+        RunControl[run_control]
+        ListSessions[list_sessions]
+        DoctorUC[doctor]
+        Ports[Ports: agent, api, control, doctor, observability, storage, system, ui]
+    end
+
+    subgraph Domain[Domain core - pure, no I/O]
+        Loop[loop - the autonomous run loop]
+        Capacity[capacity + quota + forecast + pricing]
+        Budget[budget - max-dollars enforcement]
+        Session[session + plan + completion]
+        Savepoint[savepoint + snapshot + handoff_marker]
+        ModelPolicy[model_policy + model_profile + permission]
+    end
+
+    subgraph Infrastructure[Infrastructure adapters]
+        AgentAdapter[agent/autonomy - Antigravity SDK transport]
+        ApiAdapter[api - generated Developer + Vertex REST, drift-gated]
+        GitSavepoints[git_savepoints]
+        Config[config - file + AGYLOOP_* env]
+        Observability[events + state_bus + stream_ui + logging + redact]
+        RunDir[rundir - .agyloop/ control plane]
+        Notify[notify]
+    end
+
+    subgraph External[External systems]
+        Antigravity[Antigravity SDK]
+        GeminiAPI[Gemini Developer API - GOOGLE_API_KEY]
+        Vertex[Vertex AI - ADC]
+    end
+
+    subgraph Release[Release automation - vibey-gh]
+        FeaturePR[feature/* PR] -->|squash| Develop[develop]
+        Develop -->|every push| TestPyPI[TestPyPI .devN build]
+        Develop -->|promote-to-main: derived version, rebase| Main[main]
+        Main -->|Trusted Publishing OIDC| PyPI[PyPI]
+        Main --> Surfaces[release-surfaces.yml]
+        Develop --> Surfaces
+        Surfaces -->|/develop/ and /main/ channels| Pages[GitHub Pages docs site]
+        Provenance[Provenance check] --> Gate[PR automation gate]
+        MergeTrain[Merge train] -->|green, conflict-free, reviewed heads only| Develop
+    end
+
+    subgraph SecurityBoundary[Security boundary]
+        Fork[Fork PR] -.->|never trusted with write access| Gate
+        AutomergeToken[AUTOMERGE_TOKEN] -->|merges only| MergeTrain
+        AnthropicKey[ANTHROPIC_API_KEY] -->|review and repair only, no merge| Gate
+        LocalFallback[Local review fallback - self-hosted vibey-local runner + Ollama] -->|only when the paid review returned no verdict| Gate
+        LocalFallback -.->|trusted_only - fork PRs never reach the runner| Fork
+        RuntimeSecrets[GOOGLE_API_KEY / ADC] -.->|runtime only, never used by CI| GeminiAPI
+    end
+
+    Run --> RunPlan
+    Run --> ResumeSession
+    Ops --> RunControl
+    Ops --> ListSessions
+    Groups --> DoctorUC
+    Groups --> ListSessions
+    State --> RunDir
+    State --> GitSavepoints
+    Tuning --> ModelPolicy
+    ApiCli --> ApiAdapter
+    RunPlan --> Ports
+    ResumeSession --> Ports
+    RunControl --> Ports
+    DoctorUC --> Ports
+    Ports --> Loop
+    Loop --> Capacity
+    Loop --> Budget
+    Loop --> Session
+    Loop --> Savepoint
+    Loop --> ModelPolicy
+    Ports --> AgentAdapter
+    Ports --> ApiAdapter
+    Ports --> Config
+    Ports --> Observability
+    Savepoint --> GitSavepoints
+    AgentAdapter --> Antigravity
+    ApiAdapter --> GeminiAPI
+    ApiAdapter --> Vertex
+    Antigravity --> GeminiAPI
+    Observability --> Notify

@@ -4,7 +4,7 @@
 [![PyPI downloads](https://img.shields.io/pypi/dm/agyloop)](https://pypi.org/project/agyloop/)
 [![Python versions](https://img.shields.io/pypi/pyversions/agyloop)](https://pypi.org/project/agyloop/)
 [![CI](https://github.com/adammatthewsteinberger/agyloop/actions/workflows/ci.yml/badge.svg)](https://github.com/adammatthewsteinberger/agyloop/actions/workflows/ci.yml)
-[![Docs](https://github.com/adammatthewsteinberger/agyloop/actions/workflows/docs.yml/badge.svg)](https://adammatthewsteinberger.github.io/agyloop/)
+[![Docs](https://github.com/adammatthewsteinberger/agyloop/actions/workflows/release-surfaces.yml/badge.svg)](https://adammatthewsteinberger.github.io/agyloop/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/adammatthewsteinberger/agyloop/blob/develop/LICENSE)
 
 **Onion-architected, autonomous Google Antigravity / Gemini session runner
@@ -105,7 +105,7 @@ is in the [`docs/`](https://github.com/adammatthewsteinberger/agyloop/tree/devel
 | [Decision records](https://adammatthewsteinberger.github.io/agyloop/architecture/decisions/0001-onion-architecture/) | Why each hard call was made — onion, five-member `CapacityState`, quota-aware probes, generated REST with a drift gate |
 | [Contributing](https://adammatthewsteinberger.github.io/agyloop/contributing/development/) | Development setup, [release process](https://adammatthewsteinberger.github.io/agyloop/contributing/release-process/) |
 | [Plans](https://github.com/adammatthewsteinberger/agyloop/tree/develop/docs/plans) | Design record, vendor research notes, and the shared transplant outline (GitHub tree; not in the site nav) |
-| [Changelog](https://github.com/adammatthewsteinberger/agyloop/blob/develop/CHANGELOG.md) | Release notes, maintained by release-please |
+| [Changelog](https://github.com/adammatthewsteinberger/agyloop/blob/develop/CHANGELOG.md) | Release notes; versions are derived and published by [vibey-gh](https://pypi.org/project/vibey-gh/) at promotion |
 
 ## Project status
 

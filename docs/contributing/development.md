@@ -24,7 +24,7 @@ uv run agyloop --help
 ## The branch model (gitflow)
 
 ```
-main         ← always releasable; release-please opens PRs against this
+main         ← always releasable; vibey-gh promotes develop into this
   ▲ merge commit
 develop      ← integration branch; default GitHub branch
   ▲ squash-merge
@@ -36,8 +36,9 @@ feature/*    ← your work — branch from develop, never from main
 3. PR into `develop`. CI (`ci.yml`) runs Python 3.12–3.13.
 4. Squash-merge into `develop` with a conventional title.
 5. `develop` → `main` is a **merge commit**, not a squash.
-6. After the first public `v0.1.0`, release-please maintains a standing
-   release PR on `main`. See [release-process.md](release-process.md).
+6. Releases are automated by vibey-gh: the promotion applies a derived version
+   bump and the push to `main` publishes to PyPI. See
+   [the release process](release-process.md).
 
 ## Conventional Commits
 
@@ -61,7 +62,7 @@ pytest -m system
 lint-imports
 bandit -q -r src/agyloop
 pip-audit
-mkdocs build --strict
+properdocs build --strict --config-file properdocs.yml
 ```
 
 `pre-commit run --all-files` runs the hook subset.

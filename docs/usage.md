@@ -113,6 +113,14 @@ agyloop savepoints                # list git refs refs/agyloop/<run_id>/<n>
 agyloop unwind --to 1             # git reset --hard; refuses while the run is active
 ```
 
+## Inspecting and resetting local state
+
+```bash
+agyloop config                    # print the effective runner config (file + AGYLOOP_* + defaults)
+agyloop config --cwd ../project   # ...for another project directory
+agyloop reset                     # wipe the local .agyloop/ control plane (prompts; --yes to skip)
+```
+
 Savepoint commits use `chore(agyloop):` subjects and never add `.agyloop/` or
 `__pycache__` / `*.py[cod]` to the project history. Unchanged trees get a
 ref-only checkpoint (no empty commit).

@@ -50,7 +50,7 @@ dev = [
     # Release automation and provenance guardrails, shared by every repo in
     # the family. Stdlib-only, so adopting it in five places multiplies
     # nobody's dependency tree.
-    "vibey-gh>=1.2",
+    "vibey-gh==1.47.0",
     "bandit>=1.7",
     "build>=1.2",
     "hypothesis>=6.100",
@@ -66,9 +66,8 @@ dev = [
 ]
 
 docs = [
-    "mkdocs>=1.6",
-    "mkdocs-material>=9.5",
-    "mkdocstrings[python]>=0.26",
+    "properdocs==1.6.7",
+    "properdocs-theme-mkdocs==1.6.7",
 ]
 
 [project.scripts]

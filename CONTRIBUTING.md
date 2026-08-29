@@ -38,7 +38,7 @@ the default test suite and `pytest -m system` need no Google account. See
 ## The branch model (gitflow)
 
 ```
-main         ← always releasable; release-please opens release PRs against this
+main         ← always releasable; vibey-gh promotes develop into this
   ▲ (merge commit — preserves individual conventional commits)
 develop      ← integration branch; feature branches target this
   ▲ (squash-merge — one conventional-commit-titled squash per feature)
@@ -50,9 +50,9 @@ feature/*    ← your work
 3. Open a PR **into `develop`**, not `main`. CI runs Python 3.12–3.13.
 4. Your feature branch is **squash-merged** into `develop`.
 5. Periodically, `develop` is merged into `main` as a **merge commit**.
-6. Later releases: release-please maintains a standing PR on `main`. The
-   first public tag was `v0.1.0` without waiting for a `0.1.1` bump. See
-   [`docs/contributing/release-process.md`](docs/contributing/release-process.md).
+6. Releases are automated by vibey-gh: the promotion applies a derived version
+   bump and the push to `main` publishes to PyPI. See
+   [the release process](docs/contributing/release-process.md).
 
 Never implement on `main`.
 
