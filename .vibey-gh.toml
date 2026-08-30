@@ -32,6 +32,10 @@ owner           = "adammatthewsteinberger"
 trusted_authors = ["adammatthewsteinberger", "claude[bot]", "github-actions[bot]", "vibey[bot]"]
 
 [documentation]
+# The living-roadmap doctrine (vibey-gh#211) defaults require_roadmap to true.
+# The roadmap for this repository rides the parked research-paper pull request; flip this to true when it merges.
+# The exact-head review still judges roadmap liveness on every head.
+require_roadmap = false
 # GA4 measurement id for the published docs site, rendered into release-surfaces.yml as
 # GA_ID. Public by nature -- it ships in the page source of every site that uses it.
 google_analytics_id = "G-M7VWHFFE1M"
